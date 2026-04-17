@@ -1,2 +1,6 @@
 .vercel
 node_modules
+dist/
+backend/node_modules
+.env
+.env.local
