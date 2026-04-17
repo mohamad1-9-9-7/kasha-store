@@ -343,7 +343,16 @@ export default function CartPage() {
                     }}
                     onMouseLeave={() => setHoverImg(null)}
                   >
-                    <img src={(it.image || "").trim()} alt={it.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
+                    {it.image ? (
+                      <img
+                        src={(it.image || "").trim()}
+                        alt={it.name}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = "https://placehold.co/200x200?text=📦"; }}
+                      />
+                    ) : (
+                      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, background: "#F1F5F9" }}>📦</div>
+                    )}
                   </div>
 
                   <div>
@@ -405,7 +414,7 @@ export default function CartPage() {
                           <Link to={`/product/${p.id}`} style={{ textDecoration: "none", display: "block" }}>
                             <div style={{ height: 80, background: "#F1F5F9", position: "relative", overflow: "hidden" }}>
                               {p.image
-                                ? <img src={p.image} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
+                                ? <img src={p.image} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = "https://placehold.co/200x200?text=📦"; }} />
                                 : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, opacity: .3 }}>📦</div>}
                               {pct && <span style={{ position: "absolute", top: 4, right: 4, background: "#EF4444", color: "#fff", borderRadius: 999, padding: "2px 6px", fontSize: 10, fontWeight: 800 }}>-{pct}%</span>}
                             </div>
@@ -419,7 +428,8 @@ export default function CartPage() {
                               const cart = safeParse("cart", []);
                               const idx  = cart.findIndex(x => String(x.id) === String(p.id));
                               if (idx >= 0) cart[idx].qty = (cart[idx].qty || 1) + 1;
-                              else cart.push({ ...p, qty: 1 });
+                              // ✅ حقول خفيفة فقط (بدون كل الصور)
+                              else cart.push({ id: p.id, name: p.name, price: Number(p.price) || 0, image: p.image || p.images?.[0] || "", category: p.category || "", qty: 1 });
                               setItems(cart);
                               toast(`✅ ${p.name} ${isAr ? "أُضيف للسلة" : "added to cart"}`, "success");
                             }}

@@ -216,7 +216,16 @@ export default function ProductDetails() {
           return opt ? { group: grp.name, value: opt.label, hex: opt.hex } : null;
         }).filter(Boolean)
       : [];
-    addToCart({ ...product, price: finalPrice, variantSummary }, qty);
+    // ✅ نخزّن فقط الحقول الخفيفة بالسلة (بدون كل الصور لتفادي امتلاء localStorage)
+    const cartItem = {
+      id: product.id,
+      name: product.name,
+      price: finalPrice,
+      image: product.image || product.images?.[0] || "",
+      category: product.category || "",
+      variantSummary,
+    };
+    addToCart(cartItem, qty);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   };

@@ -594,7 +594,15 @@ export default function BundlePage() {
                 {/* إضافة الباندل للسلة بدلاً من الشراء */}
                 <button onClick={() => {
                   bundle.forEach(it => {
-                    if (cartCtx?.addToCart) cartCtx.addToCart(it, it.qty || 1);
+                    // ✅ حقول خفيفة فقط (بدون كل الصور لتفادي امتلاء localStorage)
+                    const light = {
+                      id: it.id,
+                      name: it.name,
+                      price: Number(it.price) || 0,
+                      image: it.image || it.images?.[0] || "",
+                      category: it.category || "",
+                    };
+                    if (cartCtx?.addToCart) cartCtx.addToCart(light, it.qty || 1);
                   });
                   toast(isAr ? `✅ تمت إضافة ${bundle.length} منتج للسلة` : `✅ ${bundle.length} items added to cart`, "success");
                   setBundle([]);
