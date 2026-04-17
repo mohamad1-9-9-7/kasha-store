@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#6366F1" />
+    <meta name="description" content="كشخة - أفضل منتجات موضة الإمارات بأسعار تنافسية. شحن مجاني لجميع الإمارات." />
+    <meta name="keywords" content="كشخة, متجر, إمارات, موضة, تسوق, ملابس, عطور" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="كشخة" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+
+    <!-- Open Graph (base - overridden per page by React) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="كشخة" />
+    <meta property="og:title" content="كشخة - متجر الإمارات" />
+    <meta property="og:description" content="أفضل منتجات موضة الإمارات بأسعار تنافسية. شحن مجاني." />
+    <meta property="og:image" content="/og-default.png" />
+    <meta property="og:url" content="https://kashkha-store.vercel.app" />
+    <meta property="og:locale" content="ar_AE" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="كشخة - متجر الإمارات" />
+    <meta name="twitter:description" content="أفضل منتجات موضة الإمارات بأسعار تنافسية." />
+    <meta name="twitter:image" content="/og-default.png" />
+
+    <title>كشخة</title>
+    <script type="module" crossorigin src="/assets/index-6c08fbbd.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>

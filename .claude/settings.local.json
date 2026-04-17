@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(vercel --prod)",
+      "Bash(npx vercel:*)",
+      "Bash(where netlify:*)",
+      "Bash(where vercel:*)",
+      "Bash(where firebase:*)",
+      "Bash(gh auth:*)",
+      "Bash(npm list:*)",
+      "Bash(grep -E \"\\\\.jsx$\")",
+      "Bash(del \"C:\\\\Users\\\\moham\\\\OneDrive\\\\Desktop\\\\kashkha-store\\\\src\\\\firebase.js\")"
+    ]
+  }
+}
