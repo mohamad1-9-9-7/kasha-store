@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import CategoryPage from "./pages/CategoryPage";
@@ -31,14 +31,11 @@ const safeGetUser = () => {
 };
 
 function App() {
-  const location = useLocation();
-  const [user, setUser] = useState(safeGetUser());
-  const [isAdmin, setIsAdmin] = useState(localStorage.getItem("isAdmin") === "true");
+  useLocation(); // ✅ يخلي المكون يعمل re-render لما تتغير الصفحة
 
-  useEffect(() => {
-    setUser(safeGetUser());
-    setIsAdmin(localStorage.getItem("isAdmin") === "true");
-  }, [location]);
+  // ✅ قراءة مباشرة من localStorage بكل رندر (بتمنع race condition بعد تسجيل الدخول)
+  const user = safeGetUser();
+  const isAdmin = localStorage.getItem("isAdmin") === "true";
 
   // ✅ عرض مؤقت أثناء جلب المستخدم
   if (user === null && localStorage.getItem("user")) {
