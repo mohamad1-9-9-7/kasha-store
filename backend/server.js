@@ -5,10 +5,7 @@ const { initDB } = require("./db");
 
 const app = express();
 
-app.use(cors({
-  origin: process.env.FRONTEND_URL || "*",
-  credentials: true,
-}));
+app.use(cors({ origin: "*" }));
 app.use(express.json({ limit: "20mb" })); // base64 images
 
 app.use("/api/auth",       require("./routes/auth"));
