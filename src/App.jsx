@@ -18,6 +18,7 @@ import ProfilePage from "./pages/ProfilePage";
 import WishlistPage from "./pages/WishlistPage";
 import NotFound from "./pages/NotFound";
 import BundlePage from "./pages/BundlePage";
+import AdminLogin from "./pages/AdminLogin";
 
 // ✅ قراءة آمنة من localStorage (تمنع كسر التطبيق لو JSON فاسد)
 const safeGetUser = () => {
@@ -48,6 +49,7 @@ function App() {
     <Routes>
       <Route path="/" element={<Navigate to="/user-login" replace />} />
       <Route path="/user-login" element={<UserLogin />} />
+      <Route path="/admin-login" element={<AdminLogin />} />
       <Route path="/register" element={<Register />} />
 
       <Route
