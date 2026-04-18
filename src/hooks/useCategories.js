@@ -1,21 +1,13 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
 
-function fromCache() {
-  try {
-    const s = localStorage.getItem("categories");
-    const p = s ? JSON.parse(s) : [];
-    return Array.isArray(p) ? p.map((c) => (typeof c === "string" ? { name: c } : c)).filter((c) => c?.name) : [];
-  } catch { return []; }
-}
-
 export function useCategories() {
-  const [categories, setCategories] = useState(fromCache);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = () =>
     apiFetch("/api/categories")
-      .then((data) => { setCategories(data); localStorage.setItem("categories", JSON.stringify(data)); })
+      .then((data) => { setCategories(data); })
       .catch(() => {});
 
   useEffect(() => {

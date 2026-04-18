@@ -202,11 +202,8 @@ export default function CartPage() {
       if (user) {
         const redeemed  = redeemPoints ? maxRedeemSets * POINTS_REDEEM_RATE : 0;
         const newPoints = (userPoints - redeemed) + earned;
-        const updated   = { ...user, points: newPoints };
-        localStorage.setItem("user", JSON.stringify(updated));
-        const users = safeParse("users", []);
-        const idx   = users.findIndex(u => u.phone === user.phone);
-        if (idx >= 0) { users[idx] = { ...users[idx], points: newPoints }; localStorage.setItem("users", JSON.stringify(users)); }
+        localStorage.setItem("user", JSON.stringify({ ...user, points: newPoints }));
+        apiFetch(`/api/users/${user.phone}/points`, { method: "PUT", body: { points: newPoints } }).catch(() => {});
       }
 
       clearCart();

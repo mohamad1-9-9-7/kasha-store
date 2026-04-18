@@ -133,11 +133,8 @@ export default function BundlePage() {
       /* نقاط الولاء */
       if (user) {
         const newPoints = (user.points || 0) + earnedPoints;
-        const updatedUser = { ...user, points: newPoints };
-        localStorage.setItem("user", JSON.stringify(updatedUser));
-        const users = safeParse("users", []);
-        const idx = users.findIndex(u => u.phone === user.phone);
-        if (idx >= 0) { users[idx] = { ...users[idx], points: newPoints }; localStorage.setItem("users", JSON.stringify(users)); }
+        localStorage.setItem("user", JSON.stringify({ ...user, points: newPoints }));
+        apiFetch(`/api/users/${user.phone}/points`, { method: "PUT", body: { points: newPoints } }).catch(() => {});
       }
 
       /* واتساب */

@@ -5,6 +5,7 @@ import MiniNav from "../components/MiniNav";
 import { useToast } from "../context/ToastContext";
 import { useLang } from "../context/LanguageContext";
 import { T } from "../i18n";
+import { apiFetch } from "../api";
 
 const EMIRATES_AR = ["دبي", "أبو ظبي", "الشارقة", "عجمان", "رأس الخيمة", "الفجيرة", "أم القيوين"];
 const EMIRATES_EN = ["Dubai", "Abu Dhabi", "Sharjah", "Ajman", "Ras Al Khaimah", "Fujairah", "Umm Al Quwain"];
@@ -37,28 +38,33 @@ export default function ProfilePage() {
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
-  const saveInfo = () => {
-    if (!form.name.trim() || !form.phone.trim()) return toast("يرجى تعبئة الاسم والهاتف", "error");
-    const updated = { ...user, name: form.name.trim(), phone: form.phone.trim(), city: form.city, address: form.address.trim() };
-    localStorage.setItem("user", JSON.stringify(updated));
-    // تحديث في قائمة المستخدمين
-    const users = safeParse("users", []);
-    const idx   = users.findIndex(u => u.phone === user.phone);
-    if (idx >= 0) { users[idx] = { ...users[idx], ...updated }; localStorage.setItem("users", JSON.stringify(users)); }
-    toast("✅ تم حفظ المعلومات", "success");
+  const saveInfo = async () => {
+    if (!form.name.trim()) return toast("يرجى تعبئة الاسم", "error");
+    try {
+      const { user: updated } = await apiFetch("/api/auth/profile", {
+        method: "PUT",
+        body: { name: form.name.trim(), city: form.city, address: form.address.trim() },
+      });
+      localStorage.setItem("user", JSON.stringify(updated));
+      toast("✅ تم حفظ المعلومات", "success");
+    } catch (err) {
+      toast(err.message || "خطأ في الحفظ", "error");
+    }
   };
 
-  const changePw = () => {
-    const users = safeParse("users", []);
-    const me    = users.find(u => u.phone === user.phone);
-    if (!me)                          return toast("حساب غير موجود", "error");
-    if (me.password !== form.password) return toast("كلمة المرور الحالية خاطئة", "error");
-    if (form.newPw.length < 4)         return toast("كلمة المرور الجديدة قصيرة (4 خانات على الأقل)", "error");
+  const changePw = async () => {
+    if (form.newPw.length < 4) return toast("كلمة المرور الجديدة قصيرة (4 خانات على الأقل)", "error");
     if (form.newPw !== form.confirmPw) return toast("كلمات المرور غير متطابقة", "error");
-    const updated = users.map(u => u.phone === user.phone ? { ...u, password: form.newPw } : u);
-    localStorage.setItem("users", JSON.stringify(updated));
-    setForm(f => ({ ...f, password: "", newPw: "", confirmPw: "" }));
-    toast("✅ تم تغيير كلمة المرور", "success");
+    try {
+      await apiFetch("/api/auth/change-password", {
+        method: "PUT",
+        body: { currentPassword: form.password, newPassword: form.newPw },
+      });
+      setForm(f => ({ ...f, password: "", newPw: "", confirmPw: "" }));
+      toast("✅ تم تغيير كلمة المرور", "success");
+    } catch (err) {
+      toast(err.message || "خطأ في تغيير كلمة المرور", "error");
+    }
   };
 
   const logout = () => {

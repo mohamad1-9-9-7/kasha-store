@@ -1,21 +1,13 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
 
-function fromCache() {
-  try {
-    const s = localStorage.getItem("coupons");
-    const p = s ? JSON.parse(s) : [];
-    return Array.isArray(p) ? p : [];
-  } catch { return []; }
-}
-
 export function useCoupons() {
-  const [coupons, setCoupons] = useState(fromCache);
+  const [coupons, setCoupons] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = () =>
     apiFetch("/api/coupons")
-      .then((data) => { setCoupons(data); localStorage.setItem("coupons", JSON.stringify(data)); })
+      .then((data) => { setCoupons(data); })
       .catch(() => {});
 
   useEffect(() => {

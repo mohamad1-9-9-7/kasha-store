@@ -11,24 +11,13 @@ const DEFAULTS = {
   twitter: "",
 };
 
-function fromCache() {
-  try {
-    const s = localStorage.getItem("storeSettings") || localStorage.getItem("settings");
-    return s ? { ...DEFAULTS, ...JSON.parse(s) } : DEFAULTS;
-  } catch { return DEFAULTS; }
-}
-
 export function useSettings() {
-  const [settings, setSettings] = useState(fromCache);
+  const [settings, setSettings] = useState(DEFAULTS);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     apiFetch("/api/settings")
-      .then((data) => {
-        const merged = { ...DEFAULTS, ...data };
-        setSettings(merged);
-        localStorage.setItem("storeSettings", JSON.stringify(merged));
-      })
+      .then((data) => { setSettings({ ...DEFAULTS, ...data }); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -37,7 +26,5 @@ export function useSettings() {
 }
 
 export async function saveSettings(data) {
-  const updated = await apiFetch("/api/settings", { method: "PUT", body: data });
-  localStorage.setItem("storeSettings", JSON.stringify(updated));
-  return updated;
+  return apiFetch("/api/settings", { method: "PUT", body: data });
 }

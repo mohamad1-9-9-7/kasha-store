@@ -1,21 +1,13 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
 
-function fromCache() {
-  try {
-    const s = localStorage.getItem("products");
-    const p = s ? JSON.parse(s) : [];
-    return Array.isArray(p) ? p : [];
-  } catch { return []; }
-}
-
 export function useProducts() {
-  const [products, setProducts] = useState(fromCache);
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = () =>
     apiFetch("/api/products")
-      .then((data) => { setProducts(data); localStorage.setItem("products", JSON.stringify(data)); })
+      .then((data) => { setProducts(data); })
       .catch(() => {});
 
   useEffect(() => {
