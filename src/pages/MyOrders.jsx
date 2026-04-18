@@ -143,6 +143,16 @@ export default function MyOrders() {
                             <div style={{ flex: 1 }}>
                               <div style={{ fontWeight: 700, fontSize: 14, color: "#0F172A" }}>{it.name}</div>
                               <div style={{ fontSize: 12, color: "#94A3B8" }}>{lang === "ar" ? "الكمية:" : "Qty:"} {it.qty}</div>
+                              {it.variantSummary?.length > 0 && (
+                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                                  {it.variantSummary.map((v, j) => (
+                                    <span key={j} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#EEF2FF", color: "#4338CA", borderRadius: 999, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>
+                                      {v.hex && <span style={{ width: 8, height: 8, borderRadius: "50%", background: v.hex, display: "inline-block", border: "1px solid rgba(0,0,0,.1)" }} />}
+                                      {v.group}: {v.value}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                             <div style={{ fontWeight: 800, color: "#6366F1", fontSize: 14 }}>{fmt((it.price || 0) * (it.qty || 1))}</div>
                           </div>

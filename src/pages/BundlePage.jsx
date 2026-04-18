@@ -123,7 +123,7 @@ export default function BundlePage() {
         body: {
           id: orderId, status: "NEW", type: "BUNDLE",
           customer: { name: f.name, phone: f.phone, city: f.city, cityLabel, address: f.address, notes: f.notes || "" },
-          items: bundle.map(it => ({ id: it.id, name: it.name, price: Number(it.price) || 0, qty: it.qty || 1, image: it.image || "", category: it.category || "" })),
+          items: bundle.map(it => ({ id: it.id, name: it.name, price: Number(it.price) || 0, qty: it.qty || 1, image: it.image || "", category: it.category || "", variantSummary: it.variantSummary || [] })),
           totals: { subtotal, bundleDiscount: discountAmt, bundleTier: tier?.pct || 0, grandTotal, currency: "AED" },
           payment: { method: f.payMethod || "cash", status: "COD_PENDING" },
           loyaltyPoints: { earned: earnedPoints, redeemed: 0 },
@@ -139,7 +139,10 @@ export default function BundlePage() {
 
       /* واتساب */
       const adminPhone = (storeSettings.whatsapp || "971585446473").replace(/\D/g, "");
-      const itemsList = bundle.map(it => `• ${it.name} × ${it.qty}`).join("%0A");
+      const itemsList = bundle.map(it => {
+        const vs = (it.variantSummary || []).map(v => `${v.group}: ${v.value}`).join(" - ");
+        return `• ${it.name} × ${it.qty}${vs ? ` (${vs})` : ""}`;
+      }).join("%0A");
       const waMsg = `📦 *باندل جديد!*%0Aرقم: ${orderId}%0Aالعميل: ${f.name}%0Aهاتف: ${f.phone}%0A%0Aالمنتجات:%0A${itemsList}%0A%0Aخصم الباندل: ${tier?.pct || 0}%25%0Aالإجمالي: ${fmt(grandTotal)}`;
       window.open(`https://wa.me/${adminPhone}?text=${waMsg}`, "_blank");
 

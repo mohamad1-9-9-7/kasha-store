@@ -60,7 +60,10 @@ export default function AdminOrders() {
       STATUSES.find(s => s.val === o.status)?.label || o.status || "",
       o.payment?.method === "cash" ? "كاش" : "تحويل",
       o.totals?.grandTotal || 0,
-      (o.items || []).map(it => `${it.name} ×${it.qty}`).join(" | "),
+      (o.items || []).map(it => {
+        const vs = (it.variantSummary || []).map(v => `${v.group}: ${v.value}`).join(" - ");
+        return `${it.name} ×${it.qty}${vs ? ` (${vs})` : ""}`;
+      }).join(" | "),
     ]);
     const csv = [header, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
@@ -199,7 +202,19 @@ export default function AdminOrders() {
                           {(o.items || []).map((it, i) => (
                             <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 12, padding: "10px 14px", border: "1px solid #F1F5F9" }}>
                               <img src={(it.image || "").trim() || "https://via.placeholder.com/50"} alt={it.name} style={{ width: 50, height: 50, objectFit: "cover", borderRadius: 10 }} onError={e => { e.currentTarget.src = "https://via.placeholder.com/50"; }} />
-                              <div style={{ flex: 1, fontWeight: 700, color: "#0F172A" }}>{it.name}</div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 700, color: "#0F172A" }}>{it.name}</div>
+                                {it.variantSummary?.length > 0 && (
+                                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                                    {it.variantSummary.map((v, j) => (
+                                      <span key={j} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#EEF2FF", color: "#4338CA", borderRadius: 999, padding: "3px 10px", fontSize: 12, fontWeight: 700 }}>
+                                        {v.hex && <span style={{ width: 10, height: 10, borderRadius: "50%", background: v.hex, display: "inline-block", border: "1px solid rgba(0,0,0,.1)" }} />}
+                                        {v.group}: {v.value}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                               <div style={{ color: "#94A3B8", fontSize: 13 }}>×{it.qty}</div>
                               <div style={{ fontWeight: 800, color: "#6366F1" }}>{fmt((it.price || 0) * (it.qty || 0))}</div>
                             </div>

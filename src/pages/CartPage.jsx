@@ -190,7 +190,7 @@ export default function CartPage() {
             address: form.address, notes: form.notes,
             location: locationData ? { lat: locationData.lat, lng: locationData.lng, mapLink: `https://maps.google.com/?q=${locationData.lat},${locationData.lng}` } : null,
           },
-          items: (items || []).map(it => ({ id: it.id, name: it.name, price: Number(it.price) || 0, qty: Number(it.qty) || 1, image: it.image || "", category: it.category || "" })),
+          items: (items || []).map(it => ({ id: it.id, name: it.name, price: Number(it.price) || 0, qty: Number(it.qty) || 1, image: it.image || "", category: it.category || "", variantSummary: it.variantSummary || [] })),
           totals: { subtotal, couponCode: appliedCoupon?.code || null, couponDiscount, pointsDiscount, grandTotal, currency: "AED" },
           payment: { method: form.payMethod, transferRef: form.payMethod === "bank" ? form.transferRef : "", status: form.payMethod === "cash" ? "COD_PENDING" : "BANK_PENDING" },
           loyaltyPoints: { earned, redeemed: redeemPoints ? maxRedeemSets * POINTS_REDEEM_RATE : 0 },
@@ -209,7 +209,10 @@ export default function CartPage() {
       clearCart();
 
       const adminPhone = (storeSettings.whatsapp || "971585446473").replace(/\D/g, "");
-      const itemsList  = (items || []).map(it => `• ${it.name} × ${it.qty}`).join("%0A");
+      const itemsList  = (items || []).map(it => {
+        const vs = (it.variantSummary || []).map(v => `${v.group}: ${v.value}`).join(" - ");
+        return `• ${it.name} × ${it.qty}${vs ? ` (${vs})` : ""}`;
+      }).join("%0A");
       const locLine    = locationData ? `%0Aموقع GPS: https://maps.google.com/?q=${locationData.lat},${locationData.lng}` : "";
       const waMsg      = `🛍️ *طلب جديد!*%0Aرقم: ${orderId}%0Aالعميل: ${form.name}%0Aهاتف: ${form.phone}%0Aالمدينة: ${cityLabel}%0A%0Aالمنتجات:%0A${itemsList}%0A%0Aالإجمالي: ${fmt(grandTotal)}%0Aالدفع: ${form.payMethod === "cash" ? "كاش" : "تحويل بنكي"}${locLine}`;
       window.open(`https://wa.me/${adminPhone}?text=${waMsg}`, "_blank");
