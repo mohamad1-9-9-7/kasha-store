@@ -15,6 +15,7 @@ export default function CategoryPage() {
   const [nowMs, setNowMs] = useState(Date.now());
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("default");
+  const [brand, setBrand] = useState("");
 
   const { categories } = useCategories();
   const { products: allProds } = useProducts();
@@ -25,6 +26,11 @@ export default function CategoryPage() {
   }, [categories, categoryId, lang]);
 
   const products = useMemo(() => allProds.filter(p => slugify(p?.category) === categoryId), [allProds, categoryId]);
+
+  const brands = useMemo(() => {
+    const set = new Set(products.map(p => (p.brand || "").trim()).filter(Boolean));
+    return Array.from(set).sort();
+  }, [products]);
 
   useEffect(() => {
     const t = setInterval(() => setNowMs(Date.now()), 1000);
@@ -42,10 +48,11 @@ export default function CategoryPage() {
   const filtered = useMemo(() => {
     let arr = [...products];
     if (search) arr = arr.filter(p => p.name?.toLowerCase().includes(search.toLowerCase()));
+    if (brand)  arr = arr.filter(p => (p.brand || "").trim() === brand);
     if (sort === "price-asc")  arr.sort((a, b) => a.price - b.price);
     if (sort === "price-desc") arr.sort((a, b) => b.price - a.price);
     return arr;
-  }, [products, search, sort]);
+  }, [products, search, sort, brand]);
 
   return (
     <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'Tajawal',sans-serif", direction: lang === "ar" ? "rtl" : "ltr" }}>
@@ -94,6 +101,13 @@ export default function CategoryPage() {
               />
               <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", fontSize: 16, pointerEvents: "none" }}>🔍</span>
             </div>
+            {brands.length > 0 && (
+              <select value={brand} onChange={e => setBrand(e.target.value)}
+                style={{ padding: "10px 14px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 14, background: "#F8FAFC", color: "#334155", fontWeight: 600, fontFamily: "'Tajawal',sans-serif", cursor: "pointer", outline: "none" }}>
+                <option value="">🏷️ كل الماركات</option>
+                {brands.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            )}
             <select value={sort} onChange={e => setSort(e.target.value)}
               style={{ padding: "10px 14px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 14, background: "#F8FAFC", color: "#334155", fontWeight: 600, fontFamily: "'Tajawal',sans-serif", cursor: "pointer", outline: "none" }}>
               <option value="default">{t("cat_sort_new")}</option>
@@ -148,6 +162,7 @@ export default function CategoryPage() {
                   </Link>
 
                   <div style={{ padding: "16px" }}>
+                    {p.brand && <div style={{ fontSize: 11, fontWeight: 700, color: "#16A34A", marginBottom: 4 }}>🏷️ {p.brand}</div>}
                     <Link to={`/product/${p.id}`} style={{ display: "block", fontWeight: 800, fontSize: 15, color: "#0F172A", marginBottom: 8, lineHeight: 1.4 }}>{p.name}</Link>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>

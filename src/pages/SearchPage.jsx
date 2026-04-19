@@ -22,6 +22,7 @@ export default function SearchPage() {
       !p.hidden && (
         (p.name || "").toLowerCase().includes(s) ||
         (p.category || "").toLowerCase().includes(s) ||
+        (p.brand || "").toLowerCase().includes(s) ||
         (p.description || "").toLowerCase().includes(s) ||
         (p.badges || []).some(b => b.toLowerCase().includes(s))
       )

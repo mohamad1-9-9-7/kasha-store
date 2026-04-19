@@ -332,6 +332,7 @@ export default function ProductDetails() {
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <span style={{ background: "#EEF2FF", color: "#6366F1", borderRadius: 999, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>{product.category}</span>
+                {product.brand && <span style={{ background: "#F0FDF4", color: "#16A34A", borderRadius: 999, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>🏷️ {product.brand}</span>}
                 {product.sku && <span style={{ background: "#F1F5F9", color: "#64748B", borderRadius: 999, padding: "4px 12px", fontSize: 11, fontWeight: 600, fontFamily: "monospace", letterSpacing: .5 }}>SKU: {product.sku}</span>}
               </div>
               <h1 style={{ fontSize: 22, fontWeight: 900, color: "#0F172A", marginTop: 12, lineHeight: 1.4 }}>{product.name}</h1>
