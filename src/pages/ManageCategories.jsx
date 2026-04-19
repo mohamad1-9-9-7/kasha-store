@@ -10,21 +10,30 @@ const S = {
 
 export default function ManageCategories() {
   const navigate = useNavigate();
-  const { categories, loading } = useCategories();
+  const { categories, loading, refresh } = useCategories();
   const [name, setName]       = useState("");
   const [nameEn, setNameEn]   = useState("");
   const [image, setImage]     = useState("");
-  const [editId, setEditId]   = useState(null); // Firestore document ID
+  const [editId, setEditId]   = useState(null);
+  const [saving, setSaving]   = useState(false);
 
   const handleAdd = async () => {
     if (!name.trim()) return alert("❗ أدخل اسم القسم بالعربي");
-    if (editId !== null) {
-      await updateCategory(editId, { name: name.trim(), nameEn: nameEn.trim(), image: image.trim() });
-      setEditId(null);
-    } else {
-      await addCategory({ name: name.trim(), nameEn: nameEn.trim(), image: image.trim() });
+    try {
+      setSaving(true);
+      if (editId !== null) {
+        await updateCategory(editId, { name: name.trim(), nameEn: nameEn.trim(), image: image.trim() });
+        setEditId(null);
+      } else {
+        await addCategory({ name: name.trim(), nameEn: nameEn.trim(), image: image.trim() });
+      }
+      setName(""); setNameEn(""); setImage("");
+      await refresh();
+    } catch (e) {
+      alert("❌ فشل الحفظ: " + (e.message || "خطأ غير معروف"));
+    } finally {
+      setSaving(false);
     }
-    setName(""); setNameEn(""); setImage("");
   };
 
   const startEdit = (cat) => {
@@ -34,7 +43,12 @@ export default function ManageCategories() {
 
   const handleDelete = async (cat) => {
     if (!window.confirm("حذف هذا القسم؟")) return;
-    await deleteCategory(cat.id);
+    try {
+      await deleteCategory(cat.id);
+      await refresh();
+    } catch (e) {
+      alert("❌ فشل الحذف: " + (e.message || "خطأ غير معروف"));
+    }
   };
 
   return (
@@ -71,9 +85,9 @@ export default function ManageCategories() {
               <input value={image} onChange={e => setImage(e.target.value)} placeholder="https://..." style={{ ...inputBase, direction: "ltr" }} onFocus={focusIn} onBlur={focusOut} />
             </div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={handleAdd}
-                style={{ flex: 1, padding: "14px", background: "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", border: "none", borderRadius: 12, fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "'Tajawal',sans-serif", boxShadow: "0 6px 18px rgba(99,102,241,.3)" }}>
-                {editId !== null ? "💾 حفظ التعديل" : "➕ إضافة القسم"}
+              <button onClick={handleAdd} disabled={saving}
+                style={{ flex: 1, padding: "14px", background: "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", border: "none", borderRadius: 12, fontWeight: 800, fontSize: 15, cursor: saving ? "not-allowed" : "pointer", fontFamily: "'Tajawal',sans-serif", boxShadow: "0 6px 18px rgba(99,102,241,.3)", opacity: saving ? 0.6 : 1 }}>
+                {saving ? "⏳ جاري الحفظ..." : (editId !== null ? "💾 حفظ التعديل" : "➕ إضافة القسم")}
               </button>
               {editId !== null && (
                 <button onClick={() => { setEditId(null); setName(""); setNameEn(""); setImage(""); }}

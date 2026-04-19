@@ -22,7 +22,8 @@
       "Bash(node --check routes/auth.js)",
       "Bash(node --check routes/orders.js)",
       "Bash(node --check routes/users.js)",
-      "Bash(npx vite *)"
+      "Bash(npx vite *)",
+      "Bash(node -e \"console.log\\(require\\('crypto'\\).randomBytes\\(48\\).toString\\('hex'\\)\\)\")"
     ]
   }
 }

@@ -31,8 +31,8 @@ export default function AdminDashboard() {
   const [tab, setTab]   = useState("home");
 
   /* بيانات */
-  const { categories } = useCategories();
-  const { products }   = useProducts();
+  const { categories, refresh: refreshCategories } = useCategories();
+  const { products, refresh: refreshProducts }     = useProducts();
   const [orders,     setOrders]     = useState([]);
 
   /* فورم الأقسام */
@@ -96,12 +96,17 @@ export default function AdminDashboard() {
   /* ── أقسام: حفظ ── */
   const saveCat = async () => {
     if (!catForm.name.trim()) return alert("أدخل اسم القسم");
-    if (catEdit !== null) {
-      await updateCategory(catEdit, { name: catForm.name.trim(), image: catForm.image });
-    } else {
-      await addCategory({ name: catForm.name.trim(), image: catForm.image });
+    try {
+      if (catEdit !== null) {
+        await updateCategory(catEdit, { name: catForm.name.trim(), image: catForm.image });
+      } else {
+        await addCategory({ name: catForm.name.trim(), image: catForm.image });
+      }
+      setCatForm({ name: "", image: "" }); setCatEdit(null);
+      await refreshCategories();
+    } catch (e) {
+      alert("❌ فشل الحفظ: " + (e.message || ""));
     }
-    setCatForm({ name: "", image: "" }); setCatEdit(null);
   };
 
   /* ── منتجات: حفظ التعديل ── */
@@ -120,13 +125,32 @@ export default function AdminDashboard() {
       badges:      String(prodForm.badges || "").split(",").map(b => b.trim()).filter(Boolean),
       image:       prodForm.image || current.image,
     };
-    await replaceProduct(updated);
-    setProdEdit(null);
+    try {
+      await replaceProduct(updated);
+      setProdEdit(null);
+      await refreshProducts();
+    } catch (e) {
+      alert("❌ فشل الحفظ: " + (e.message || ""));
+    }
   };
-  const deleteProd = async (id) => { if (!window.confirm("حذف هذا المنتج؟")) return; await deleteProduct(id); };
+  const deleteProd = async (id) => {
+    if (!window.confirm("حذف هذا المنتج؟")) return;
+    try {
+      await deleteProduct(id);
+      await refreshProducts();
+    } catch (e) {
+      alert("❌ فشل الحذف: " + (e.message || ""));
+    }
+  };
   const toggleHideProd = async (id) => {
     const p = products.find(x => x.id === id);
-    if (p) await updateProduct(id, { hidden: !p.hidden });
+    if (!p) return;
+    try {
+      await updateProduct(id, { hidden: !p.hidden });
+      await refreshProducts();
+    } catch (e) {
+      alert("❌ فشل التحديث");
+    }
   };
 
   /* ── إعدادات: حفظ ── */
@@ -610,7 +634,7 @@ export default function AdminDashboard() {
                     <div style={{ fontWeight: 700, color: "#0F172A", fontSize: 14 }}>حذف جميع المنتجات</div>
                     <div style={{ fontSize: 12, color: "#94A3B8" }}>لا يمكن التراجع عن هذا الإجراء</div>
                   </div>
-                  <button onClick={async () => { if (window.confirm("⚠️ حذف جميع المنتجات؟ لا يمكن التراجع!")) { try { await Promise.all(products.map(p => deleteProduct(p.id))); alert("✅ تم حذف جميع المنتجات"); } catch { alert("❌ فشل الحذف"); } } }} style={{ background: "#EF4444", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+                  <button onClick={async () => { if (window.confirm("⚠️ حذف جميع المنتجات؟ لا يمكن التراجع!")) { try { await Promise.all(products.map(p => deleteProduct(p.id))); await refreshProducts(); alert("✅ تم حذف جميع المنتجات"); } catch { alert("❌ فشل الحذف"); } } }} style={{ background: "#EF4444", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
                     حذف الكل
                   </button>
                 </div>
@@ -619,7 +643,7 @@ export default function AdminDashboard() {
                     <div style={{ fontWeight: 700, color: "#0F172A", fontSize: 14 }}>حذف جميع الأقسام</div>
                     <div style={{ fontSize: 12, color: "#94A3B8" }}>سيؤثر على ظهور المنتجات</div>
                   </div>
-                  <button onClick={async () => { if (window.confirm("⚠️ حذف جميع الأقسام؟")) { try { await Promise.all(categories.map(c => deleteCategory(c.id))); alert("✅ تم حذف جميع الأقسام"); } catch { alert("❌ فشل الحذف"); } } }} style={{ background: "#EF4444", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+                  <button onClick={async () => { if (window.confirm("⚠️ حذف جميع الأقسام؟")) { try { await Promise.all(categories.map(c => deleteCategory(c.id))); await refreshCategories(); alert("✅ تم حذف جميع الأقسام"); } catch { alert("❌ فشل الحذف"); } } }} style={{ background: "#EF4444", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
                     حذف الكل
                   </button>
                 </div>

@@ -12,9 +12,10 @@ const emptyForm = { code: "", type: "percent", value: "", minOrder: "", maxUses:
 export default function CouponsPage() {
   const navigate = useNavigate();
   const toast    = useToast();
-  const { coupons, loading } = useCoupons();
+  const { coupons, loading, refresh } = useCoupons();
   const [form, setForm]       = useState(emptyForm);
   const [editing, setEditing] = useState(null);
+  const [saving, setSaving]   = useState(false);
 
   useEffect(() => {
     if (localStorage.getItem("isAdmin") !== "true") navigate("/user-login");
@@ -28,25 +29,44 @@ export default function CouponsPage() {
     const existing = coupons.find(c => c.code === code && c.code !== editing);
     if (existing) return toast("هذا الرمز موجود مسبقاً", "error");
 
-    if (editing) {
-      await saveCoupon({ ...coupons.find(c => c.code === editing), code, type: form.type, value: Number(form.value), minOrder: Number(form.minOrder) || 0, maxUses: Number(form.maxUses) || 999, expiry: form.expiry || null });
-    } else {
-      await saveCoupon({ code, type: form.type, value: Number(form.value), minOrder: Number(form.minOrder) || 0, maxUses: Number(form.maxUses) || 999, uses: 0, expiry: form.expiry || null, active: true, createdAt: new Date().toISOString() });
+    try {
+      setSaving(true);
+      if (editing) {
+        await saveCoupon({ ...coupons.find(c => c.code === editing), code, type: form.type, value: Number(form.value), minOrder: Number(form.minOrder) || 0, maxUses: Number(form.maxUses) || 999, expiry: form.expiry || null });
+      } else {
+        await saveCoupon({ code, type: form.type, value: Number(form.value), minOrder: Number(form.minOrder) || 0, maxUses: Number(form.maxUses) || 999, uses: 0, expiry: form.expiry || null, active: true, createdAt: new Date().toISOString() });
+      }
+      setForm(emptyForm);
+      setEditing(null);
+      await refresh();
+      toast(editing ? "✅ تم تحديث الكوبون" : "✅ تم إنشاء الكوبون", "success");
+    } catch (e) {
+      toast("❌ فشل الحفظ: " + (e.message || ""), "error");
+    } finally {
+      setSaving(false);
     }
-    setForm(emptyForm);
-    setEditing(null);
-    toast(editing ? "✅ تم تحديث الكوبون" : "✅ تم إنشاء الكوبون", "success");
   };
 
   const toggleActive = async (code) => {
     const c = coupons.find(x => x.code === code);
-    if (c) await updateCoupon(code, { active: !c.active });
+    if (!c) return;
+    try {
+      await updateCoupon(code, { active: !c.active });
+      await refresh();
+    } catch (e) {
+      toast("❌ فشل التحديث", "error");
+    }
   };
 
   const remove = async (code) => {
     if (!window.confirm(`حذف كوبون ${code}؟`)) return;
-    await deleteCoupon(code);
-    toast("🗑️ تم الحذف", "success");
+    try {
+      await deleteCoupon(code);
+      await refresh();
+      toast("🗑️ تم الحذف", "success");
+    } catch (e) {
+      toast("❌ فشل الحذف", "error");
+    }
   };
 
   const startEdit = (c) => {
@@ -106,8 +126,8 @@ export default function CouponsPage() {
             </div>
           </div>
           <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
-            <button onClick={save} style={{ flex: 1, padding: "13px", background: "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", border: "none", borderRadius: 14, fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
-              {editing ? "💾 حفظ التعديلات" : "✅ إنشاء الكوبون"}
+            <button onClick={save} disabled={saving} style={{ flex: 1, padding: "13px", background: "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", border: "none", borderRadius: 14, fontWeight: 800, fontSize: 15, cursor: saving ? "not-allowed" : "pointer", fontFamily: "'Tajawal',sans-serif", opacity: saving ? 0.6 : 1 }}>
+              {saving ? "⏳ جاري الحفظ..." : (editing ? "💾 حفظ التعديلات" : "✅ إنشاء الكوبون")}
             </button>
             {editing && (
               <button onClick={() => { setEditing(null); setForm(emptyForm); }} style={{ padding: "13px 20px", background: "#F1F5F9", color: "#64748B", border: "none", borderRadius: 14, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
