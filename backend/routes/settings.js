@@ -18,6 +18,10 @@ const DEFAULTS = {
   pointsRedeemValue: 10,
   freeShipThreshold: 200,
   minOrderAmount: 0,
+  shippingFee: 15,
+  vatEnabled: true,
+  vatPercent: 5,
+  vatIncluded: true,
 };
 
 // key → type
@@ -27,7 +31,8 @@ const FIELD_TYPES = {
   storeEmail: "string", storeAddress: "string",
   pointsEnabled: "bool",
   pointsPerAED: "number", pointsRedeemRate: "number", pointsRedeemValue: "number",
-  freeShipThreshold: "number", minOrderAmount: "number",
+  freeShipThreshold: "number", minOrderAmount: "number", shippingFee: "number",
+  vatEnabled: "bool", vatPercent: "number", vatIncluded: "bool",
 };
 
 function coerce(val, type) {

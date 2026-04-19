@@ -2,6 +2,7 @@ const router = require("express").Router();
 const { pool } = require("../db");
 const { requireAuth, requireAdmin } = require("../middleware/auth");
 const { v4: uuidv4 } = require("uuid");
+const { sendMail, orderConfirmationHTML } = require("../lib/mailer");
 
 // GET orders — admin: all, user: own orders (by phone in token)
 router.get("/", requireAuth, async (req, res) => {
@@ -34,15 +35,42 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
-// POST create order (authenticated user)
+// POST create order (authenticated user) — validates & decrements stock atomically
 router.post("/", requireAuth, async (req, res) => {
+  const client = await pool.connect();
   try {
     const id = req.body.id || uuidv4();
-    // Force the customer phone to match the authenticated user (prevents spoofing)
     const customer = { ...(req.body.customer || {}) };
     if (req.user?.role !== "admin") {
       customer.phone = req.user?.id || customer.phone;
     }
+    const orderItems = Array.isArray(req.body.items) ? req.body.items : [];
+
+    await client.query("BEGIN");
+
+    // Stock check + decrement (skip products without stock tracking)
+    for (const it of orderItems) {
+      const pid = String(it.id || "");
+      const qty = Number(it.qty) || 1;
+      if (!pid || qty < 1) continue;
+      const { rows } = await client.query(
+        "SELECT data FROM products WHERE id = $1 FOR UPDATE",
+        [pid]
+      );
+      if (!rows.length) continue;
+      const prod = rows[0].data;
+      if (Number.isFinite(prod.stock)) {
+        if (prod.stock < qty) {
+          await client.query("ROLLBACK");
+          return res.status(409).json({
+            error: `المخزون غير كافٍ لـ "${prod.name}" (المتاح: ${prod.stock})`,
+          });
+        }
+        const updated = { ...prod, stock: prod.stock - qty };
+        await client.query("UPDATE products SET data = $1 WHERE id = $2", [updated, pid]);
+      }
+    }
+
     const order = {
       ...req.body,
       customer,
@@ -50,11 +78,47 @@ router.post("/", requireAuth, async (req, res) => {
       status: "NEW",
       createdAt: new Date().toISOString(),
     };
-    await pool.query("INSERT INTO orders (id, data) VALUES ($1, $2)", [id, order]);
+    await client.query("INSERT INTO orders (id, data) VALUES ($1, $2)", [id, order]);
+    await client.query("COMMIT");
+
+    // Clear any abandoned-cart record for this customer (fire-and-forget)
+    if (customer.phone) {
+      pool.query("DELETE FROM abandoned_carts WHERE id = $1", [customer.phone]).catch(() => {});
+    }
+
+    // Fire-and-forget email notifications (never block the order response)
+    (async () => {
+      try {
+        const { rows: sRows } = await pool.query(
+          "SELECT data FROM settings WHERE id = 'main'"
+        );
+        const settings = sRows[0]?.data || {};
+        const storeName = settings.storeName || "كشخة";
+        const adminEmail = settings.storeEmail || "";
+        const html = orderConfirmationHTML(order, storeName);
+        const subject = `✅ تأكيد طلبك ${order.id} — ${storeName}`;
+        if (customer.email) {
+          sendMail({ to: customer.email, subject, html }).catch(() => {});
+        }
+        if (adminEmail) {
+          sendMail({
+            to: adminEmail,
+            subject: `🛍️ طلب جديد ${order.id}`,
+            html,
+          }).catch(() => {});
+        }
+      } catch (err) {
+        console.error("order email dispatch:", err.message);
+      }
+    })();
+
     res.json(order);
   } catch (e) {
+    try { await client.query("ROLLBACK"); } catch {}
     console.error("POST /orders:", e);
     res.status(500).json({ error: "خطأ في الخادم" });
+  } finally {
+    client.release();
   }
 });
 

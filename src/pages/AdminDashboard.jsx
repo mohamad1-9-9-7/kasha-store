@@ -5,6 +5,7 @@ import AdminNotificationBell from "../components/AdminNotificationBell";
 import { useCategories, addCategory, updateCategory, deleteCategory } from "../hooks/useCategories";
 import { useProducts, updateProduct, replaceProduct, deleteProduct } from "../hooks/useProducts";
 import { useSettings, saveSettings } from "../hooks/useSettings";
+import { fetchAllRatings, moderateRating, adminDeleteRating } from "../hooks/useRatings";
 import { apiFetch } from "../api";
 import { uploadToCloudinary, isConfigured } from "../utils/cloudinary";
 
@@ -182,6 +183,8 @@ export default function AdminDashboard() {
     { key: "home",     label: "🏠 الرئيسية"  },
     { key: "cats",     label: "📂 الأقسام"    },
     { key: "products", label: "🏷️ المنتجات"  },
+    { key: "ratings",  label: "⭐ التقييمات" },
+    { key: "abandoned", label: "🛒 السلات المهجورة" },
     { key: "settings", label: "⚙️ الإعدادات" },
   ];
 
@@ -577,6 +580,16 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* ════════════ التقييمات ════════════ */}
+        {tab === "ratings" && (
+          <RatingsModeration products={products} />
+        )}
+
+        {/* ════════════ السلات المهجورة ════════════ */}
+        {tab === "abandoned" && (
+          <AbandonedCarts settings={settings} />
+        )}
+
         {/* ════════════ الإعدادات ════════════ */}
         {tab === "settings" && (
           <div style={{ display: "grid", gap: 22, maxWidth: 720, animation: "fadeUp .4s ease both" }}>
@@ -653,11 +666,16 @@ export default function AdminDashboard() {
             {/* الشحن والطلبات */}
             <div style={CARD}>
               <h3 style={{ fontWeight: 800, fontSize: 17, color: "#0F172A", marginBottom: 16 }}>🚚 الشحن والطلبات</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }} className="admin-2col">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }} className="admin-2col">
                 <div>
                   <label style={lbl}>حد الشحن المجاني (درهم)</label>
                   <input type="number" min="0" value={settings.freeShipThreshold ?? 200} onChange={e => setSettings(s => ({ ...s, freeShipThreshold: Number(e.target.value) || 0 }))} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
                   <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>طلبات فوق هذا المبلغ = شحن مجاني</div>
+                </div>
+                <div>
+                  <label style={lbl}>رسوم التوصيل (درهم)</label>
+                  <input type="number" min="0" value={settings.shippingFee ?? 15} onChange={e => setSettings(s => ({ ...s, shippingFee: Number(e.target.value) || 0 }))} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>للطلبات تحت حد الشحن المجاني</div>
                 </div>
                 <div>
                   <label style={lbl}>الحد الأدنى للطلب (درهم)</label>
@@ -665,6 +683,41 @@ export default function AdminDashboard() {
                   <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>اتركه 0 لتعطيل الحد الأدنى</div>
                 </div>
               </div>
+            </div>
+
+            {/* ضريبة VAT */}
+            <div style={CARD}>
+              <h3 style={{ fontWeight: 800, fontSize: 17, color: "#0F172A", marginBottom: 16 }}>🧾 ضريبة القيمة المضافة (VAT)</h3>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginBottom: 16, padding: "10px 14px", background: settings.vatEnabled ? "#ECFDF5" : "#F8FAFC", borderRadius: 10, border: `1.5px solid ${settings.vatEnabled ? "#10B981" : "#E2E8F0"}` }}>
+                <input type="checkbox" checked={!!settings.vatEnabled} onChange={e => setSettings(s => ({ ...s, vatEnabled: e.target.checked }))} style={{ width: 18, height: 18, cursor: "pointer" }} />
+                <span style={{ fontWeight: 700, fontSize: 14, color: settings.vatEnabled ? "#10B981" : "#64748B" }}>
+                  {settings.vatEnabled ? "✅ الضريبة مفعّلة" : "⏸️ الضريبة معطّلة"}
+                </span>
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, opacity: settings.vatEnabled ? 1 : 0.4, pointerEvents: settings.vatEnabled ? "auto" : "none" }} className="admin-2col">
+                <div>
+                  <label style={lbl}>نسبة الضريبة (%)</label>
+                  <input type="number" min="0" max="100" step="0.1" value={settings.vatPercent ?? 5} onChange={e => setSettings(s => ({ ...s, vatPercent: Number(e.target.value) || 0 }))} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>الإمارات: 5%</div>
+                </div>
+                <div>
+                  <label style={lbl}>طريقة احتساب الضريبة</label>
+                  <select value={settings.vatIncluded ? "included" : "added"} onChange={e => setSettings(s => ({ ...s, vatIncluded: e.target.value === "included" }))} style={{ ...inputBase, cursor: "pointer" }} onFocus={focusIn} onBlur={focusOut}>
+                    <option value="included">السعر شامل الضريبة (مدمجة)</option>
+                    <option value="added">تُضاف على السعر (منفصلة)</option>
+                  </select>
+                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>المعتاد بالإمارات: شامل الضريبة</div>
+                </div>
+              </div>
+              {settings.vatEnabled && (
+                <div style={{ marginTop: 14, padding: "12px 16px", background: "#FFFBEB", borderRadius: 10, border: "1.5px solid #FDE68A", fontSize: 13, color: "#92400E", lineHeight: 1.7 }}>
+                  💡 <b>مثال:</b> منتج بـ 100 درهم، ضريبة {settings.vatPercent || 0}%:
+                  <br />
+                  {settings.vatIncluded
+                    ? `السعر 100 شامل ضريبة ${((100 * (settings.vatPercent || 0)) / (100 + (settings.vatPercent || 0))).toFixed(2)} درهم`
+                    : `السعر 100 + ضريبة ${((100 * (settings.vatPercent || 0)) / 100).toFixed(2)} = ${(100 + (100 * (settings.vatPercent || 0)) / 100).toFixed(2)} درهم`}
+                </div>
+              )}
             </div>
 
             {/* روابط السوشيال */}
@@ -794,6 +847,287 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+   RatingsModeration — تبويب مراجعة التقييمات
+   ════════════════════════════════════════════════════════════════ */
+function RatingsModeration({ products }) {
+  const [ratings, setRatings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("pending"); // pending | approved | all
+  const [busyKey, setBusyKey] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchAllRatings();
+      setRatings(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const productName = (id) => {
+    const p = products.find(x => String(x.id) === String(id));
+    return p?.name || `منتج ${id}`;
+  };
+
+  const filtered = ratings.filter(r => {
+    if (filter === "pending")  return r.approved !== true;
+    if (filter === "approved") return r.approved === true;
+    return true;
+  });
+
+  const act = async (r, action) => {
+    const key = `${r.productId}:${r.userId}`;
+    setBusyKey(key);
+    try {
+      if (action === "approve") await moderateRating(r.productId, r.userId, true);
+      if (action === "reject")  await moderateRating(r.productId, r.userId, false);
+      if (action === "delete")  {
+        if (!confirm("حذف التقييم نهائياً؟")) { setBusyKey(""); return; }
+        await adminDeleteRating(r.productId, r.userId);
+      }
+      await load();
+    } catch (e) {
+      alert("❌ فشل العملية: " + (e.message || ""));
+    } finally {
+      setBusyKey("");
+    }
+  };
+
+  const counts = {
+    pending:  ratings.filter(r => r.approved !== true).length,
+    approved: ratings.filter(r => r.approved === true).length,
+    all:      ratings.length,
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 18, animation: "fadeUp .4s ease both" }}>
+      {/* فلاتر */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {[
+          { key: "pending",  label: `⏳ قيد المراجعة (${counts.pending})`,  col: "#F59E0B", bg: "#FFFBEB" },
+          { key: "approved", label: `✅ مقبولة (${counts.approved})`,        col: "#10B981", bg: "#ECFDF5" },
+          { key: "all",      label: `📋 الكل (${counts.all})`,               col: "#64748B", bg: "#F1F5F9" },
+        ].map(f => (
+          <button key={f.key} onClick={() => setFilter(f.key)}
+            style={{
+              padding: "10px 18px", borderRadius: 12,
+              background: filter === f.key ? f.col : f.bg,
+              color: filter === f.key ? "#fff" : f.col,
+              border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer",
+              fontFamily: "'Tajawal',sans-serif",
+            }}>
+            {f.label}
+          </button>
+        ))}
+        <button onClick={load}
+          style={{ padding: "10px 14px", borderRadius: 12, background: "#EEF2FF", color: "#6366F1", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif", marginInlineStart: "auto" }}>
+          🔄 تحديث
+        </button>
+      </div>
+
+      {/* القائمة */}
+      {loading ? (
+        <div style={{ padding: 40, textAlign: "center", color: "#64748B" }}>⏳ جاري التحميل...</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ padding: 40, textAlign: "center", background: "#fff", borderRadius: 16, border: "2px dashed #E2E8F0" }}>
+          <div style={{ fontSize: 48, marginBottom: 10 }}>⭐</div>
+          <div style={{ color: "#64748B", fontWeight: 700 }}>
+            {filter === "pending" ? "لا توجد تقييمات قيد المراجعة" : "لا توجد تقييمات"}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: 12 }}>
+          {filtered.map(r => {
+            const key = `${r.productId}:${r.userId}`;
+            const busy = busyKey === key;
+            return (
+              <div key={key} style={{
+                background: "#fff", borderRadius: 14,
+                border: `1.5px solid ${r.approved ? "#BBF7D0" : "#FDE68A"}`,
+                padding: "16px 18px", boxShadow: shadow.sm,
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 14, color: "#0F172A" }}>
+                      {r.name} — {"⭐".repeat(r.stars || 0)}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#64748B", marginTop: 3 }}>
+                      على: <b>{productName(r.productId)}</b>
+                    </div>
+                    <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2, direction: "ltr", textAlign: "right" }}>
+                      {r.userId} · {r.date ? new Date(r.date).toLocaleString("ar-AE") : ""}
+                    </div>
+                  </div>
+                  <span style={{
+                    background: r.approved ? "#ECFDF5" : "#FFFBEB",
+                    color: r.approved ? "#10B981" : "#F59E0B",
+                    borderRadius: 999, padding: "4px 10px", fontSize: 11, fontWeight: 800,
+                  }}>
+                    {r.approved ? "✅ مقبول" : "⏳ قيد المراجعة"}
+                  </span>
+                </div>
+                {r.comment && (
+                  <div style={{
+                    background: "#F8FAFC", borderRadius: 10, padding: "10px 14px",
+                    fontSize: 13, color: "#334155", marginTop: 8, lineHeight: 1.6,
+                  }}>
+                    {r.comment}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                  {!r.approved && (
+                    <button disabled={busy} onClick={() => act(r, "approve")}
+                      style={{ background: "#10B981", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 800, fontSize: 13, cursor: busy ? "wait" : "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+                      ✅ قبول
+                    </button>
+                  )}
+                  {r.approved && (
+                    <button disabled={busy} onClick={() => act(r, "reject")}
+                      style={{ background: "#F59E0B", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 800, fontSize: 13, cursor: busy ? "wait" : "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+                      ⏸️ إخفاء
+                    </button>
+                  )}
+                  <button disabled={busy} onClick={() => act(r, "delete")}
+                    style={{ background: "#FEF2F2", color: "#EF4444", border: "1.5px solid #FECACA", borderRadius: 10, padding: "8px 16px", fontWeight: 800, fontSize: 13, cursor: busy ? "wait" : "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+                    🗑️ حذف
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═════════ مكوّن السلات المهجورة ═════════ */
+function AbandonedCarts({ settings }) {
+  const [carts, setCarts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    apiFetch("/api/abandoned-carts")
+      .then(data => setCarts(Array.isArray(data) ? data : []))
+      .catch(() => setCarts([]))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const del = async (id) => {
+    if (!confirm("حذف هذه السلة المهجورة؟")) return;
+    setBusy(true);
+    try {
+      await apiFetch(`/api/abandoned-carts/admin/${encodeURIComponent(id)}`, { method: "DELETE" });
+      setCarts(cs => cs.filter(c => c.id !== id));
+    } catch { alert("فشل الحذف"); }
+    finally { setBusy(false); }
+  };
+
+  const waFollow = (c) => {
+    const phone = String(c.customer?.phone || c.id || "").replace(/\D/g, "");
+    if (!phone) return alert("لا يوجد رقم هاتف");
+    const itemsTxt = (c.items || []).map(it => `• ${it.name} × ${it.qty}`).join("%0A");
+    const storeName = settings?.storeName || "كشخة";
+    const name = c.customer?.name ? `مرحباً ${c.customer.name}،` : "مرحباً،";
+    const msg = `${name}%0A%0Aلاحظنا أنك تركت سلتك معنا في *${storeName}* 🛍️%0A%0Aالمنتجات:%0A${itemsTxt}%0A%0Aالإجمالي: ${fmt(c.subtotal || 0)}%0A%0Aهل نساعدك في إتمام الطلب؟ 💜`;
+    window.open(`https://wa.me/${phone}?text=${msg}`, "_blank");
+  };
+
+  const fmtTime = (iso) => {
+    try {
+      const d = new Date(iso);
+      const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+      if (mins < 1) return "الآن";
+      if (mins < 60) return `قبل ${mins} دقيقة`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return `قبل ${hrs} ساعة`;
+      const days = Math.floor(hrs / 24);
+      return `قبل ${days} يوم`;
+    } catch { return ""; }
+  };
+
+  return (
+    <div style={{ animation: "fadeUp .4s ease both" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <h2 style={{ fontWeight: 900, fontSize: 22, color: "#0F172A" }}>🛒 السلات المهجورة</h2>
+        <button onClick={load} style={{ background: "#EEF2FF", color: "#6366F1", border: "1.5px solid #C7D2FE", borderRadius: 10, padding: "8px 14px", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+          🔄 تحديث
+        </button>
+      </div>
+
+      <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 12, padding: "10px 14px", fontSize: 13, color: "#B45309", marginBottom: 14 }}>
+        💡 تواصل مع العميل عبر واتساب لاستعادة الطلب. السلة تُحذف تلقائياً عند إتمام الطلب.
+      </div>
+
+      {loading && <div style={{ textAlign: "center", padding: 40, color: "#94A3B8" }}>جاري التحميل...</div>}
+
+      {!loading && carts.length === 0 && (
+        <div style={{ textAlign: "center", padding: 60, background: "#fff", borderRadius: 20, border: "2px dashed #E2E8F0" }}>
+          <div style={{ fontSize: 48, marginBottom: 10 }}>✨</div>
+          <div style={{ fontWeight: 800, color: "#0F172A", marginBottom: 4 }}>لا توجد سلات مهجورة</div>
+          <div style={{ fontSize: 13, color: "#94A3B8" }}>كل العملاء أكملوا طلباتهم 🎉</div>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gap: 12 }}>
+        {carts.map(c => (
+          <div key={c.id} style={{ ...CARD, padding: 18 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 15, color: "#0F172A" }}>
+                  {c.customer?.name || "عميل غير معروف"}
+                </div>
+                <div style={{ fontSize: 12, color: "#64748B", direction: "ltr", display: "inline-block", marginTop: 3 }}>
+                  {c.customer?.phone || c.id}
+                </div>
+                {c.customer?.email && (
+                  <div style={{ fontSize: 11, color: "#94A3B8", direction: "ltr", marginTop: 2 }}>
+                    {c.customer.email}
+                  </div>
+                )}
+              </div>
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontSize: 11, color: "#94A3B8" }}>{fmtTime(c.updatedAt)}</div>
+                <div style={{ fontWeight: 900, color: "#6366F1", marginTop: 2 }}>{fmt(c.subtotal || 0)}</div>
+              </div>
+            </div>
+
+            <div style={{ background: "#F8FAFC", borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
+              {(c.items || []).map((it, i) => (
+                <div key={i} style={{ fontSize: 13, color: "#334155", display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
+                  <span>• {it.name} × {it.qty}</span>
+                  <span style={{ color: "#64748B" }}>{fmt((Number(it.price) || 0) * (Number(it.qty) || 1))}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={() => waFollow(c)}
+                style={{ flex: 1, background: "#25D366", color: "#fff", border: "none", borderRadius: 10, padding: "10px 14px", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+                💬 متابعة واتساب
+              </button>
+              <button disabled={busy} onClick={() => del(c.id)}
+                style={{ background: "#FEF2F2", color: "#EF4444", border: "1.5px solid #FECACA", borderRadius: 10, padding: "10px 14px", fontWeight: 800, fontSize: 13, cursor: busy ? "wait" : "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+                🗑️ حذف
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

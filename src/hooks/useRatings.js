@@ -30,3 +30,25 @@ export async function submitRating(productId, { stars, comment, name }) {
 export async function deleteRating(productId) {
   return apiFetch(`/api/ratings/${productId}`, { method: "DELETE" });
 }
+
+/* ── Admin ── */
+export async function fetchPendingRatings() {
+  return apiFetch("/api/ratings/admin/pending");
+}
+
+export async function fetchAllRatings() {
+  return apiFetch("/api/ratings/admin/all");
+}
+
+export async function moderateRating(productId, userId, approved) {
+  return apiFetch(`/api/ratings/admin/${productId}/${encodeURIComponent(userId)}`, {
+    method: "PUT",
+    body: { approved },
+  });
+}
+
+export async function adminDeleteRating(productId, userId) {
+  return apiFetch(`/api/ratings/admin/${productId}/${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+  });
+}

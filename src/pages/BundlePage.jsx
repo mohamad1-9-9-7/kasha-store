@@ -10,6 +10,7 @@ import { T } from "../i18n";
 import { useCategories } from "../hooks/useCategories";
 import { useProducts } from "../hooks/useProducts";
 import { useSettings } from "../hooks/useSettings";
+import InvoiceModal from "../components/InvoiceModal";
 
 /* ── بيانات الإمارات ── */
 const EMIRATES = [
@@ -51,12 +52,16 @@ export default function BundlePage() {
   const { settings: storeSettings } = useSettings();
   const POINTS_ENABLED = storeSettings.pointsEnabled !== false;
   const POINTS_PER_AED = Number(storeSettings.pointsPerAED) || 1;
+  const VAT_ENABLED    = storeSettings.vatEnabled !== false;
+  const VAT_PERCENT    = Number(storeSettings.vatPercent) || 0;
+  const VAT_INCLUDED   = storeSettings.vatIncluded !== false;
 
   /* ── حالة الباندل ── */
   const [bundle, setBundle]   = useState([]);
   const [activeCat, setActiveCat] = useState(null);
   const [search, setSearch]   = useState("");
   const [showCheckout, setShowCheckout] = useState(false);
+  const [invoiceOrder, setInvoiceOrder] = useState(null);
 
   useEffect(() => { if (categories.length && !activeCat) setActiveCat(categories[0]?.name || categories[0]?.id); }, [categories]);
 
@@ -78,7 +83,13 @@ export default function BundlePage() {
   const subtotal     = bundle.reduce((s, it) => s + (Number(it.price) || 0) * (it.qty || 1), 0);
   const tier         = bundleDiscount(bundle.length);
   const discountAmt  = tier ? Math.round(subtotal * tier.pct / 100) : 0;
-  const grandTotal   = Math.max(0, subtotal - discountAmt);
+  const afterDisc    = Math.max(0, subtotal - discountAmt);
+  const vatAmount    = VAT_ENABLED
+    ? (VAT_INCLUDED
+        ? +(afterDisc * VAT_PERCENT / (100 + VAT_PERCENT)).toFixed(2)
+        : +(afterDisc * VAT_PERCENT / 100).toFixed(2))
+    : 0;
+  const grandTotal   = VAT_ENABLED && !VAT_INCLUDED ? afterDisc + vatAmount : afterDisc;
 
   /* ── منتجات القسم الحالي ── */
   const filtered = useMemo(() => {
@@ -117,13 +128,22 @@ export default function BundlePage() {
       const cityLabel = isAr ? (cityObj?.label || f.city) : (cityObj?.labelEn || f.city);
       const earnedPoints = POINTS_ENABLED ? Math.floor(grandTotal * POINTS_PER_AED) : 0;
 
-      await apiFetch("/api/orders", {
+      const createdOrder = await apiFetch("/api/orders", {
         method: "POST",
         body: {
           id: orderId, status: "NEW", type: "BUNDLE",
           customer: { name: f.name, phone: f.phone, city: f.city, cityLabel, address: f.address, notes: f.notes || "" },
           items: bundle.map(it => ({ id: it.id, name: it.name, price: Number(it.price) || 0, qty: it.qty || 1, image: it.image || "", category: it.category || "", variantSummary: it.variantSummary || [] })),
-          totals: { subtotal, bundleDiscount: discountAmt, bundleTier: tier?.pct || 0, grandTotal, currency: "AED" },
+          totals: {
+            subtotal,
+            bundleDiscount: discountAmt,
+            bundleTier: tier?.pct || 0,
+            vatPercent: VAT_ENABLED ? VAT_PERCENT : 0,
+            vatIncluded: VAT_INCLUDED,
+            vatAmount,
+            grandTotal,
+            currency: "AED",
+          },
           payment: { method: f.payMethod || "cash", status: "COD_PENDING" },
           loyaltyPoints: { earned: earnedPoints, redeemed: 0 },
         },
@@ -147,7 +167,7 @@ export default function BundlePage() {
 
       toast(`✅ ${isAr ? `تم طلب الباندل! ربحت ${earnedPoints} نقطة` : `Bundle ordered! You earned ${earnedPoints} points`}`, "success");
       setBundle([]);
-      navigate("/my-orders");
+      setInvoiceOrder(createdOrder || null);
     } catch (e) { console.error(e); toast(isAr ? "خطأ في الإرسال" : "Error submitting order", "error"); }
     finally { setLoading(false); }
   };
@@ -169,6 +189,15 @@ export default function BundlePage() {
         @media(max-width:900px){.bundle-grid{grid-template-columns:1fr!important}}
         @media(max-width:600px){.products-grid{grid-template-columns:repeat(2,1fr)!important}.cat-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch}}
       `}</style>
+
+      {/* فاتورة رقمية */}
+      {invoiceOrder && (
+        <InvoiceModal
+          order={invoiceOrder}
+          store={storeSettings}
+          onClose={() => { setInvoiceOrder(null); navigate("/my-orders"); }}
+        />
+      )}
 
       <MiniNav title={isAr ? "📦 بناء الباندل" : "📦 Bundle Builder"} backTo="/home" />
 
@@ -460,6 +489,15 @@ export default function BundlePage() {
                   <span>{isAr ? "التوصيل" : "Delivery"}</span>
                   <span style={{ color: "#10B981", fontWeight: 700 }}>{isAr ? "مجاني 🎉" : "Free 🎉"}</span>
                 </div>
+                {VAT_ENABLED && vatAmount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, color: "#64748B", fontSize: 13 }}>
+                    <span>
+                      {isAr ? `ضريبة (${VAT_PERCENT}%)` : `VAT (${VAT_PERCENT}%)`}
+                      {VAT_INCLUDED && <span style={{ fontSize: 11, color: "#94A3B8", marginInlineStart: 6 }}>{isAr ? "شاملة" : "incl."}</span>}
+                    </span>
+                    <span>{fmt(vatAmount)}</span>
+                  </div>
+                )}
                 <div style={{ height: 1, background: "#F1F5F9", margin: "12px 0" }} />
                 <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 900, fontSize: 20, color: "#6366F1" }}>
                   <span>{isAr ? "الإجمالي" : "Total"}</span>

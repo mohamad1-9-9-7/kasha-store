@@ -11,6 +11,7 @@ import { T } from "../i18n";
 import { useProducts } from "../hooks/useProducts";
 import { useSettings } from "../hooks/useSettings";
 import { useCoupons, incrementCouponUses } from "../hooks/useCoupons";
+import InvoiceModal from "../components/InvoiceModal";
 
 /* ─────────── ثوابت ─────────── */
 const EMIRATES = [
@@ -55,10 +56,14 @@ export default function CartPage() {
   /* ── إعدادات من لوحة التحكم ── */
   const FREE_SHIP_THRESHOLD = Number(storeSettings.freeShipThreshold) || 200;
   const MIN_ORDER_AMOUNT    = Number(storeSettings.minOrderAmount) || 0;
+  const SHIPPING_FEE        = Number(storeSettings.shippingFee) || 15;
   const POINTS_ENABLED      = storeSettings.pointsEnabled !== false;
   const POINTS_PER_AED      = Number(storeSettings.pointsPerAED) || 1;
   const POINTS_REDEEM_RATE  = Number(storeSettings.pointsRedeemRate) || 100;
   const POINTS_REDEEM_VALUE = Number(storeSettings.pointsRedeemValue) || 10;
+  const VAT_ENABLED         = storeSettings.vatEnabled !== false;
+  const VAT_PERCENT         = Number(storeSettings.vatPercent) || 0;
+  const VAT_INCLUDED        = storeSettings.vatIncluded !== false;
   const t  = k => T[lang]?.[k] ?? T.ar[k] ?? k;
   const isAr = lang === "ar";
   const dir  = isAr ? "rtl" : "ltr";
@@ -75,7 +80,7 @@ export default function CartPage() {
   };
 
   /* ── حالات ── */
-  const [form, setForm]     = useState({ name: "", phone: "", city: "", address: "", notes: "", payMethod: "cash", transferRef: "" });
+  const [form, setForm]     = useState({ name: "", phone: "", email: "", city: "", address: "", notes: "", payMethod: "cash", transferRef: "" });
   const [loading, setLoading] = useState(false);
   const [couponInput, setCouponInput]     = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
@@ -85,6 +90,7 @@ export default function CartPage() {
   const [locationData, setLocationData]   = useState(null); // { lat, lng, address }
   const [locLoading, setLocLoading]       = useState(false);
   const [hoverImg, setHoverImg]           = useState(null); // { src, x, y }
+  const [invoiceOrder, setInvoiceOrder]   = useState(null);
 
   const user          = safeParse("user");
   const userPoints    = user?.points || 0;
@@ -96,7 +102,7 @@ export default function CartPage() {
   useEffect(() => {
     if (user) {
       const em = EMIRATES.find(e => e.label === user.city || e.labelEn === user.city);
-      setForm(f => ({ ...f, name: user.name || "", phone: user.phone || "", city: em?.value || "", address: user.address || "" }));
+      setForm(f => ({ ...f, name: user.name || "", phone: user.phone || "", email: user.email || "", city: em?.value || "", address: user.address || "" }));
     }
   }, []);
 
@@ -111,7 +117,14 @@ export default function CartPage() {
   };
 
   const subtotal     = useMemo(() => (items || []).reduce((s, it) => s + (Number(it.price) || 0) * (Number(it.qty) || 1), 0), [items]);
-  const grandTotal   = Math.max(0, subtotal - couponDiscount - pointsDiscount);
+  const afterDisc    = Math.max(0, subtotal - couponDiscount - pointsDiscount);
+  // حساب الضريبة
+  const vatAmount    = VAT_ENABLED
+    ? (VAT_INCLUDED
+        ? +(afterDisc * VAT_PERCENT / (100 + VAT_PERCENT)).toFixed(2)
+        : +(afterDisc * VAT_PERCENT / 100).toFixed(2))
+    : 0;
+  const grandTotal   = VAT_ENABLED && !VAT_INCLUDED ? afterDisc + vatAmount : afterDisc;
   const toFreeShip   = Math.max(0, FREE_SHIP_THRESHOLD - subtotal);
   const freeShipPct  = Math.min(100, Math.round((subtotal / FREE_SHIP_THRESHOLD) * 100));
   const isFreeShip   = subtotal >= FREE_SHIP_THRESHOLD;
@@ -162,6 +175,33 @@ export default function CartPage() {
     );
   };
 
+  /* ── Abandoned cart ping — send to backend when cart has items + phone ── */
+  useEffect(() => {
+    const phone = (form.phone || "").replace(/\D/g, "");
+    if (!phone || phone.length < 7 || !items?.length) return;
+    const handle = setTimeout(() => {
+      apiFetch("/api/abandoned-carts", {
+        method: "POST",
+        body: {
+          id: phone,
+          customer: {
+            name: form.name,
+            phone,
+            email: (form.email || "").trim(),
+            city: form.city,
+            address: form.address,
+          },
+          items: (items || []).map(it => ({
+            id: it.id, name: it.name, price: Number(it.price) || 0,
+            qty: Number(it.qty) || 1, image: it.image || "",
+          })),
+          subtotal,
+        },
+      }).catch(() => {});
+    }, 4000);
+    return () => clearTimeout(handle);
+  }, [items, form.phone, form.name, form.email, form.city, form.address, subtotal]);
+
   /* ── Upsell ── */
   const upsellProducts = useMemo(() => {
     const visible = allProducts.filter(p => !p.hidden);
@@ -176,6 +216,16 @@ export default function CartPage() {
     if (MIN_ORDER_AMOUNT > 0 && subtotal < MIN_ORDER_AMOUNT)      return toast(isAr ? `الحد الأدنى للطلب ${fmt(MIN_ORDER_AMOUNT)}` : `Minimum order: ${fmt(MIN_ORDER_AMOUNT)}`, "error");
     if (!form.name || !form.phone || !form.city || !form.address) return toast(isAr ? "يرجى تعبئة جميع البيانات" : "Please fill in all fields", "error");
     if (form.payMethod === "bank" && !form.transferRef)          return toast(isAr ? "أدخل رقم مرجع التحويل" : "Enter transfer reference", "error");
+
+    // ✅ التحقق من المخزون
+    for (const it of items) {
+      const p = allProducts.find(x => String(x.id) === String(it.id));
+      if (!p) continue;
+      if (Number.isFinite(p.stock)) {
+        if (p.stock <= 0) return toast(isAr ? `❌ "${it.name}" نفذ من المخزون` : `❌ "${it.name}" is out of stock`, "error");
+        if ((Number(it.qty) || 1) > p.stock) return toast(isAr ? `❌ "${it.name}": المتاح ${p.stock} فقط` : `❌ "${it.name}": only ${p.stock} available`, "error");
+      }
+    }
     setLoading(true);
     try {
       const orderId   = `ORD-${Date.now()}`;
@@ -183,17 +233,29 @@ export default function CartPage() {
       const cityLabel = isAr ? cityObj?.label : cityObj?.labelEn || form.city;
       const earned    = POINTS_ENABLED ? Math.floor(grandTotal * POINTS_PER_AED) : 0;
 
-      await apiFetch("/api/orders", {
+      const createdOrder = await apiFetch("/api/orders", {
         method: "POST",
         body: {
           id: orderId,
           customer: {
-            name: form.name, phone: form.phone, city: form.city, cityLabel,
+            name: form.name, phone: form.phone, email: (form.email || "").trim(),
+            city: form.city, cityLabel,
             address: form.address, notes: form.notes,
             location: locationData ? { lat: locationData.lat, lng: locationData.lng, mapLink: `https://maps.google.com/?q=${locationData.lat},${locationData.lng}` } : null,
           },
           items: (items || []).map(it => ({ id: it.id, name: it.name, price: Number(it.price) || 0, qty: Number(it.qty) || 1, image: it.image || "", category: it.category || "", variantSummary: it.variantSummary || [] })),
-          totals: { subtotal, couponCode: appliedCoupon?.code || null, couponDiscount, pointsDiscount, grandTotal, currency: "AED" },
+          totals: {
+            subtotal,
+            couponCode: appliedCoupon?.code || null,
+            couponDiscount,
+            pointsDiscount,
+            shippingFee: isFreeShip ? 0 : SHIPPING_FEE,
+            vatPercent: VAT_ENABLED ? VAT_PERCENT : 0,
+            vatIncluded: VAT_INCLUDED,
+            vatAmount,
+            grandTotal: (isFreeShip ? grandTotal : grandTotal + SHIPPING_FEE),
+            currency: "AED",
+          },
           payment: { method: form.payMethod, transferRef: form.payMethod === "bank" ? form.transferRef : "", status: form.payMethod === "cash" ? "COD_PENDING" : "BANK_PENDING" },
           loyaltyPoints: { earned, redeemed: redeemPoints ? maxRedeemSets * POINTS_REDEEM_RATE : 0 },
         },
@@ -220,7 +282,7 @@ export default function CartPage() {
       window.open(`https://wa.me/${adminPhone}?text=${waMsg}`, "_blank");
 
       toast(`✅ ${isAr ? `تم إرسال طلبك! ربحت ${earned} نقطة` : `Order sent! You earned ${earned} points`}`, "success");
-      navigate("/my-orders");
+      setInvoiceOrder(createdOrder || null);
     } catch (e) { console.error(e); toast(isAr ? "خطأ في الإرسال، حاول مرة أخرى" : "Submission error, try again", "error"); }
     finally { setLoading(false); }
   };
@@ -262,6 +324,15 @@ export default function CartPage() {
           .upsell-grid{grid-template-columns:repeat(2,1fr)!important}
         }
       `}</style>
+
+      {/* فاتورة رقمية */}
+      {invoiceOrder && (
+        <InvoiceModal
+          order={invoiceOrder}
+          store={storeSettings}
+          onClose={() => { setInvoiceOrder(null); navigate("/my-orders"); }}
+        />
+      )}
 
       {/* Hover image preview */}
       {hoverImg && (
@@ -470,13 +541,22 @@ export default function CartPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, color: "#64748B", fontSize: 14 }}>
                   <span>{t("cart_delivery")}</span>
                   <span style={{ color: "#10B981", fontWeight: 700 }}>
-                    {isFreeShip ? `${isAr ? "مجاني 🎉" : "Free 🎉"}` : fmt(15)}
+                    {isFreeShip ? `${isAr ? "مجاني 🎉" : "Free 🎉"}` : fmt(SHIPPING_FEE)}
                   </span>
                 </div>
+                {VAT_ENABLED && vatAmount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, color: "#64748B", fontSize: 13 }}>
+                    <span>
+                      {isAr ? `ضريبة القيمة المضافة (${VAT_PERCENT}%)` : `VAT (${VAT_PERCENT}%)`}
+                      {VAT_INCLUDED && <span style={{ fontSize: 11, color: "#94A3B8", marginInlineStart: 6 }}>{isAr ? "شاملة" : "incl."}</span>}
+                    </span>
+                    <span>{fmt(vatAmount)}</span>
+                  </div>
+                )}
                 <div style={{ height: 1, background: "#F1F5F9", margin: "12px 0" }} />
                 <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 900, fontSize: 20, color: "#6366F1" }}>
                   <span>{t("cart_total")}</span>
-                  <span>{fmt(isFreeShip ? grandTotal : grandTotal + 15)}</span>
+                  <span>{fmt(isFreeShip ? grandTotal : grandTotal + SHIPPING_FEE)}</span>
                 </div>
                 {(couponDiscount + pointsDiscount) > 0 && (
                   <div style={{ marginTop: 8, background: "#ECFDF5", borderRadius: 10, padding: "8px 12px", fontSize: 13, color: "#059669", fontWeight: 700, textAlign: "center" }}>
@@ -543,6 +623,11 @@ export default function CartPage() {
                 <div style={{ display: "grid", gap: 12 }}>
                   <div><label style={S.lbl}>{t("name_label")}</label><input placeholder={t("name_ph")} value={form.name} onChange={set("name")} style={inputBase} onFocus={focusIn} onBlur={focusOut} /></div>
                   <div><label style={S.lbl}>{t("phone_label")}</label><input type="tel" placeholder={t("phone_ph")} value={form.phone} onChange={set("phone")} style={{ ...inputBase, direction: "ltr", textAlign: dir === "rtl" ? "right" : "left" }} onFocus={focusIn} onBlur={focusOut} /></div>
+                  <div>
+                    <label style={S.lbl}>{isAr ? "البريد الإلكتروني (اختياري)" : "Email (optional)"}</label>
+                    <input type="email" placeholder="name@example.com" value={form.email} onChange={set("email")} style={{ ...inputBase, direction: "ltr", textAlign: dir === "rtl" ? "right" : "left" }} onFocus={focusIn} onBlur={focusOut} />
+                    <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>{isAr ? "لإرسال تأكيد الطلب والفاتورة" : "To send order confirmation and invoice"}</div>
+                  </div>
                   <div>
                     <label style={S.lbl}>{t("city_label")}</label>
                     <select value={form.city} onChange={set("city")} style={{ ...inputBase, cursor: "pointer" }} onFocus={focusIn} onBlur={focusOut}>
@@ -660,7 +745,7 @@ export default function CartPage() {
               {/* زر التأكيد */}
               <button onClick={submit} disabled={loading}
                 style={{ width: "100%", padding: "16px", background: loading ? "#94A3B8" : "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", border: "none", borderRadius: 14, fontWeight: 900, fontSize: 16, cursor: loading ? "not-allowed" : "pointer", boxShadow: loading ? "none" : "0 8px 24px rgba(99,102,241,.4)", fontFamily: "'Tajawal',sans-serif", transition: "all .2s" }}>
-                {loading ? `⏳ ${isAr ? "جاري الإرسال..." : "Sending..."}` : `✅ ${t("cart_confirm")} — ${fmt(isFreeShip ? grandTotal : grandTotal + 15)}`}
+                {loading ? `⏳ ${isAr ? "جاري الإرسال..." : "Sending..."}` : `✅ ${t("cart_confirm")} — ${fmt(isFreeShip ? grandTotal : grandTotal + SHIPPING_FEE)}`}
               </button>
 
             </div>

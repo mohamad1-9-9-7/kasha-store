@@ -19,6 +19,11 @@ const DEFAULTS = {
   // الشحن والطلب
   freeShipThreshold: 200,  // حد الشحن المجاني (درهم)
   minOrderAmount:    0,    // الحد الأدنى للطلب (درهم)
+  shippingFee:       15,   // رسوم التوصيل (درهم)
+  // ضريبة القيمة المضافة
+  vatEnabled:        true, // تفعيل حساب الضريبة
+  vatPercent:        5,    // نسبة الضريبة (%)
+  vatIncluded:       true, // true = السعر شامل الضريبة، false = تُضاف فوق السعر
 };
 
 export function useSettings() {

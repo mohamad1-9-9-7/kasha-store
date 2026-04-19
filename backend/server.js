@@ -53,6 +53,7 @@ app.use("/api/coupons", require("./routes/coupons"));
 app.use("/api/settings", require("./routes/settings"));
 app.use("/api/users", require("./routes/users"));
 app.use("/api/ratings", require("./routes/ratings"));
+app.use("/api/abandoned-carts", require("./routes/abandonedCarts"));
 
 app.get("/", (req, res) => res.json({ status: "كشخة backend يشتغل ✅" }));
 

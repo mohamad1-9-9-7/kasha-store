@@ -188,6 +188,7 @@ export default function ProductDetails() {
       });
       await refreshRatings();
       setSubmitted(true);
+      alert("✅ شكراً! تقييمك قيد المراجعة وسيظهر بعد موافقة الإدارة.");
     } catch (e) {
       alert("❌ فشل إرسال التقييم: " + (e.message || ""));
     } finally {

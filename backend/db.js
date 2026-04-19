@@ -45,6 +45,11 @@ async function initDB() {
       PRIMARY KEY (product_id, user_id)
     );
     CREATE INDEX IF NOT EXISTS ratings_product_idx ON ratings(product_id);
+    CREATE TABLE IF NOT EXISTS abandoned_carts (
+      id TEXT PRIMARY KEY,
+      data JSONB NOT NULL,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
   console.log("✅ DB tables ready");
 }
