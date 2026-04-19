@@ -7,6 +7,7 @@ import { T } from "../i18n";
 import { C, shadow, safeParse, slugify, fmt } from "../Theme";
 import MiniNav from "../components/MiniNav";
 import { useProducts } from "../hooks/useProducts";
+import { useRatings, submitRating } from "../hooks/useRatings";
 
 function useCountdown(endIso) {
   const [left, setLeft] = useState(() => endIso ? new Date(endIso) - Date.now() : 0);
@@ -76,10 +77,11 @@ export default function ProductDetails() {
   const [selectedVars, setSelectedVars] = useState({});
 
   /* تقييمات */
-  const [ratings, setRatings]       = useState([]);
+  const { ratings, refresh: refreshRatings } = useRatings(id);
   const [myStars, setMyStars]       = useState(0);
   const [myComment, setMyComment]   = useState("");
   const [submitted, setSubmitted]   = useState(false);
+  const [submittingRating, setSubmittingRating] = useState(false);
 
   const { toggle, isWishlisted } = useWishlist();
   const { lang } = useLang();
@@ -95,14 +97,6 @@ export default function ProductDetails() {
     setProduct(found);
     setActiveImg(0);
     setImgLoaded(false);
-    // تحميل التقييمات
-    const allRatings = safeParse("ratings", {});
-    setRatings(allRatings[id] || []);
-    // التحقق إذا المستخدم قيّم مسبقاً
-    if (user) {
-      const mine = (allRatings[id] || []).find(r => r.userId === (user.uid || user.phone));
-      if (mine) { setMyStars(mine.stars); setSubmitted(true); }
-    }
     // Open Graph meta tags
     if (found) {
       document.title = `${found.name} — كشخة`;
@@ -174,18 +168,31 @@ export default function ProductDetails() {
     return ratings.reduce((s, r) => s + r.stars, 0) / ratings.length;
   }, [ratings]);
 
-  const submitRating = () => {
-    if (!myStars) return;
-    const allRatings = safeParse("ratings", {});
-    const existing = allRatings[id] || [];
-    const userId = user?.uid || user?.phone || "guest-" + Date.now();
-    const newR = { userId, name: user?.name || "مستخدم", stars: myStars, comment: myComment.trim(), date: new Date().toLocaleDateString("ar-AE") };
-    const updated = existing.filter(r => r.userId !== userId);
-    updated.unshift(newR);
-    allRatings[id] = updated;
-    localStorage.setItem("ratings", JSON.stringify(allRatings));
-    setRatings(updated);
-    setSubmitted(true);
+  /* تحميل تقييم المستخدم الحالي من البيانات المجلوبة */
+  useEffect(() => {
+    if (!user || !ratings.length) return;
+    const myId = user.uid || user.phone;
+    const mine = ratings.find(r => r.userId === myId);
+    if (mine) { setMyStars(mine.stars); setMyComment(mine.comment || ""); setSubmitted(true); }
+  }, [ratings, user]);
+
+  const handleSubmitRating = async () => {
+    if (!myStars || submittingRating) return;
+    if (!user) { alert("سجّل الدخول أولاً لتقييم المنتج"); return; }
+    try {
+      setSubmittingRating(true);
+      await submitRating(id, {
+        stars: myStars,
+        comment: myComment.trim(),
+        name: user.name || "مستخدم",
+      });
+      await refreshRatings();
+      setSubmitted(true);
+    } catch (e) {
+      alert("❌ فشل إرسال التقييم: " + (e.message || ""));
+    } finally {
+      setSubmittingRating(false);
+    }
   };
 
   if (productsLoading || (!product && !allProds.length)) return (
@@ -507,9 +514,9 @@ export default function ProductDetails() {
               <textarea placeholder="أضف تعليقك (اختياري)..." value={myComment} onChange={e => setMyComment(e.target.value)} rows={3}
                 style={{ width: "100%", marginTop: 12, padding: "12px 14px", borderRadius: 12, border: "1.5px solid #E2E8F0", fontSize: 14, fontFamily: "'Tajawal',sans-serif", color: "#334155", background: "#fff", resize: "vertical", boxSizing: "border-box", outline: "none" }}
                 onFocus={e => e.target.style.borderColor="#6366F1"} onBlur={e => e.target.style.borderColor="#E2E8F0"} />
-              <button onClick={submitRating} disabled={!myStars}
-                style={{ marginTop: 12, padding: "10px 24px", background: myStars ? "linear-gradient(135deg,#6366F1,#8B5CF6)" : "#F1F5F9", color: myStars ? "#fff" : "#94A3B8", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: myStars ? "pointer" : "not-allowed", fontFamily: "'Tajawal',sans-serif" }}>
-                نشر التقييم ✓
+              <button onClick={handleSubmitRating} disabled={!myStars || submittingRating}
+                style={{ marginTop: 12, padding: "10px 24px", background: myStars ? "linear-gradient(135deg,#6366F1,#8B5CF6)" : "#F1F5F9", color: myStars ? "#fff" : "#94A3B8", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: myStars && !submittingRating ? "pointer" : "not-allowed", fontFamily: "'Tajawal',sans-serif", opacity: submittingRating ? 0.6 : 1 }}>
+                {submittingRating ? "⏳ جاري الإرسال..." : "نشر التقييم ✓"}
               </button>
             </div>
           )}

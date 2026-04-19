@@ -37,6 +37,14 @@ async function initDB() {
       id TEXT PRIMARY KEY,
       data JSONB NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS ratings (
+      product_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      data JSONB NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (product_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS ratings_product_idx ON ratings(product_id);
   `);
   console.log("✅ DB tables ready");
 }
