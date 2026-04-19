@@ -86,7 +86,7 @@ export default function ProductDetails() {
   const t = k => T[lang][k] ?? T.ar[k] ?? k;
   const dir = lang === "ar" ? "rtl" : "ltr";
   const user = useMemo(() => safeParse("user", null), []);
-  const { products: allProds } = useProducts();
+  const { products: allProds, loading: productsLoading } = useProducts();
 
   useEffect(() => {
     if (!allProds.length) return;
@@ -187,6 +187,15 @@ export default function ProductDetails() {
     setRatings(updated);
     setSubmitted(true);
   };
+
+  if (productsLoading || (!product && !allProds.length)) return (
+    <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'Tajawal',sans-serif", direction: dir, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center", padding: 48 }}>
+        <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.5 }}>⏳</div>
+        <p style={{ color: "#64748B", fontWeight: 600 }}>{lang === "ar" ? "جاري تحميل المنتج..." : "Loading product..."}</p>
+      </div>
+    </div>
+  );
 
   if (!product) return (
     <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'Tajawal',sans-serif", direction: dir, display: "flex", alignItems: "center", justifyContent: "center" }}>

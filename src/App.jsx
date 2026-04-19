@@ -68,27 +68,27 @@ function App() {
 
       <Route
         path="/admin-dashboard"
-        element={isAdmin ? <AdminDashboard /> : <Navigate to="/user-login" replace />}
+        element={isAdmin ? <AdminDashboard /> : <Navigate to="/admin-login" replace />}
       />
       <Route
         path="/add-product"
-        element={isAdmin ? <AddProduct /> : <Navigate to="/user-login" replace />}
+        element={isAdmin ? <AddProduct /> : <Navigate to="/admin-login" replace />}
       />
       <Route
         path="/customers"
-        element={isAdmin ? <UsersList /> : <Navigate to="/user-login" replace />}
+        element={isAdmin ? <UsersList /> : <Navigate to="/admin-login" replace />}
       />
       <Route
         path="/manage-categories"
-        element={isAdmin ? <ManageCategories /> : <Navigate to="/user-login" replace />}
+        element={isAdmin ? <ManageCategories /> : <Navigate to="/admin-login" replace />}
       />
       <Route
         path="/admin-orders"
-        element={isAdmin ? <AdminOrders /> : <Navigate to="/user-login" replace />}
+        element={isAdmin ? <AdminOrders /> : <Navigate to="/admin-login" replace />}
       />
       <Route
         path="/coupons"
-        element={isAdmin ? <CouponsPage /> : <Navigate to="/user-login" replace />}
+        element={isAdmin ? <CouponsPage /> : <Navigate to="/admin-login" replace />}
       />
 
       {/* ✅ صفحات المستخدم */}

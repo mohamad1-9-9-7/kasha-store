@@ -14,7 +14,15 @@
       "Bash(grep -v \"^.*:.*//.*localStorage\")",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(xargs grep *)",
+      "Bash(npm install *)",
+      "Bash(node --check server.js)",
+      "Bash(node --check middleware/auth.js)",
+      "Bash(node --check routes/auth.js)",
+      "Bash(node --check routes/orders.js)",
+      "Bash(node --check routes/users.js)",
+      "Bash(npx vite *)"
     ]
   }
 }

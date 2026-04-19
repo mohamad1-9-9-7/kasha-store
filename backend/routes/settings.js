@@ -12,24 +12,36 @@ const DEFAULTS = {
   twitter: "",
 };
 
+const ALLOWED_KEYS = Object.keys(DEFAULTS);
+
 // GET settings (public)
 router.get("/", async (req, res) => {
   try {
     const { rows } = await pool.query("SELECT data FROM settings WHERE id = 'main'");
     res.json(rows.length ? rows[0].data : DEFAULTS);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    console.error("GET /settings:", e);
+    res.status(500).json({ error: "خطأ في الخادم" });
+  }
 });
 
-// PUT update settings (admin)
+// PUT update settings (admin) — whitelist keys
 router.put("/", requireAdmin, async (req, res) => {
   try {
-    const data = { ...DEFAULTS, ...req.body };
+    const sanitized = {};
+    for (const k of ALLOWED_KEYS) {
+      if (k in (req.body || {})) sanitized[k] = String(req.body[k] ?? "");
+    }
+    const data = { ...DEFAULTS, ...sanitized };
     await pool.query(
       "INSERT INTO settings (id, data) VALUES ('main', $1) ON CONFLICT (id) DO UPDATE SET data = $1",
       [data]
     );
     res.json(data);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    console.error("PUT /settings:", e);
+    res.status(500).json({ error: "خطأ في الخادم" });
+  }
 });
 
 module.exports = router;

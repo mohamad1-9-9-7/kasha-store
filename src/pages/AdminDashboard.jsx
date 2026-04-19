@@ -610,7 +610,7 @@ export default function AdminDashboard() {
                     <div style={{ fontWeight: 700, color: "#0F172A", fontSize: 14 }}>حذف جميع المنتجات</div>
                     <div style={{ fontSize: 12, color: "#94A3B8" }}>لا يمكن التراجع عن هذا الإجراء</div>
                   </div>
-                  <button onClick={() => { if (window.confirm("⚠️ حذف جميع المنتجات؟ لا يمكن التراجع!")) { persistProds([]); } }} style={{ background: "#EF4444", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+                  <button onClick={async () => { if (window.confirm("⚠️ حذف جميع المنتجات؟ لا يمكن التراجع!")) { try { await Promise.all(products.map(p => deleteProduct(p.id))); alert("✅ تم حذف جميع المنتجات"); } catch { alert("❌ فشل الحذف"); } } }} style={{ background: "#EF4444", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
                     حذف الكل
                   </button>
                 </div>
@@ -619,7 +619,7 @@ export default function AdminDashboard() {
                     <div style={{ fontWeight: 700, color: "#0F172A", fontSize: 14 }}>حذف جميع الأقسام</div>
                     <div style={{ fontSize: 12, color: "#94A3B8" }}>سيؤثر على ظهور المنتجات</div>
                   </div>
-                  <button onClick={() => { if (window.confirm("⚠️ حذف جميع الأقسام؟")) { persistCats([]); } }} style={{ background: "#EF4444", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+                  <button onClick={async () => { if (window.confirm("⚠️ حذف جميع الأقسام؟")) { try { await Promise.all(categories.map(c => deleteCategory(c.id))); alert("✅ تم حذف جميع الأقسام"); } catch { alert("❌ فشل الحذف"); } } }} style={{ background: "#EF4444", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
                     حذف الكل
                   </button>
                 </div>

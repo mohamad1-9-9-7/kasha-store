@@ -1,12 +1,13 @@
 // ══════════════════════════════════════════
-// إعدادات Cloudinary — عدّل القيمتين هنا
-// بعد إنشاء حساب على cloudinary.com
+// إعدادات Cloudinary — تُقرأ من متغيرات البيئة
+// عرّفها في .env.local:
+// VITE_CLOUDINARY_CLOUD_NAME=your_cloud_name
+// VITE_CLOUDINARY_UPLOAD_PRESET=your_preset
 // ══════════════════════════════════════════
-export const CLOUD_NAME    = "dznmc7amw";
-export const UPLOAD_PRESET = "kashaha store";
+export const CLOUD_NAME    = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME    || "";
+export const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "";
 
-export const isConfigured = () =>
-  CLOUD_NAME !== "YOUR_CLOUD_NAME" && UPLOAD_PRESET !== "YOUR_UPLOAD_PRESET";
+export const isConfigured = () => Boolean(CLOUD_NAME && UPLOAD_PRESET);
 
 /**
  * يرفع ملف صورة إلى Cloudinary ويرجع الرابط
@@ -15,7 +16,7 @@ export const isConfigured = () =>
  * @returns {Promise<string>} - رابط الصورة
  */
 export async function uploadToCloudinary(file, onProgress = () => {}) {
-  if (!isConfigured()) throw new Error("Cloudinary غير مُعدّ — أدخل CLOUD_NAME و UPLOAD_PRESET في src/utils/cloudinary.js");
+  if (!isConfigured()) throw new Error("Cloudinary غير مُعدّ — أضِف VITE_CLOUDINARY_CLOUD_NAME و VITE_CLOUDINARY_UPLOAD_PRESET إلى .env.local");
 
   const fd = new FormData();
   fd.append("file", file);

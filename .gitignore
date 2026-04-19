@@ -1,6 +1,32 @@
 .vercel
-node_modules
+node_modules/
+backend/node_modules/
 dist/
-backend/node_modules
+backend/dist/
+
+# env files
 .env
-.env.local
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+Thumbs.db
+
+# Coverage / testing
+coverage/
+
+# Stray images accidentally committed
+/*.jpg
+/*.jpeg
+/*.png
+!/public/**
