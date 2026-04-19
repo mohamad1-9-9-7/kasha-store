@@ -86,31 +86,25 @@ router.post("/", requireAuth, async (req, res) => {
       pool.query("DELETE FROM abandoned_carts WHERE id = $1", [customer.phone]).catch(() => {});
     }
 
-    // Fire-and-forget email notifications (never block the order response)
-    (async () => {
-      try {
-        const { rows: sRows } = await pool.query(
-          "SELECT data FROM settings WHERE id = 'main'"
-        );
-        const settings = sRows[0]?.data || {};
-        const storeName = settings.storeName || "كشخة";
-        const adminEmail = settings.storeEmail || "";
-        const html = orderConfirmationHTML(order, storeName);
-        const subject = `✅ تأكيد طلبك ${order.id} — ${storeName}`;
-        if (customer.email) {
-          sendMail({ to: customer.email, subject, html }).catch(() => {});
-        }
-        if (adminEmail) {
+    // Customer confirmation email (fire-and-forget). Admin uses WhatsApp instead.
+    if (customer.email) {
+      (async () => {
+        try {
+          const { rows: sRows } = await pool.query(
+            "SELECT data FROM settings WHERE id = 'main'"
+          );
+          const storeName = sRows[0]?.data?.storeName || "كشخة";
+          const html = orderConfirmationHTML(order, storeName);
           sendMail({
-            to: adminEmail,
-            subject: `🛍️ طلب جديد ${order.id}`,
+            to: customer.email,
+            subject: `✅ تأكيد طلبك ${order.id} — ${storeName}`,
             html,
           }).catch(() => {});
+        } catch (err) {
+          console.error("order email dispatch:", err.message);
         }
-      } catch (err) {
-        console.error("order email dispatch:", err.message);
-      }
-    })();
+      })();
+    }
 
     res.json(order);
   } catch (e) {
