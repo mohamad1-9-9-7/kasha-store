@@ -6,18 +6,24 @@ import { useCategories, addCategory, updateCategory, deleteCategory } from "../h
 import { useProducts, updateProduct, replaceProduct, deleteProduct } from "../hooks/useProducts";
 import { useSettings, saveSettings } from "../hooks/useSettings";
 import { apiFetch } from "../api";
+import { uploadToCloudinary, isConfigured } from "../utils/cloudinary";
 
-/* ── مساعدات ── */
-async function fileToBase64(file, max = 500) {
-  const dataUrl = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(file); });
-  if (!file.type.startsWith("image/")) return dataUrl;
-  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl; });
-  if (Math.max(img.width, img.height) <= max) return dataUrl;
-  const ratio = img.width / img.height;
-  const [w, h] = img.width >= img.height ? [max, Math.round(max / ratio)] : [Math.round(max * ratio), max];
-  const canvas = document.createElement("canvas"); canvas.width = w; canvas.height = h;
-  canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-  return canvas.toDataURL(file.type, 0.6);
+/* ── رفع صورة إلى Cloudinary ── */
+async function handleImageUpload(file, setUploading) {
+  if (!isConfigured()) {
+    alert("⚠️ Cloudinary غير مُعدّ — تحقّق من متغيرات VITE_CLOUDINARY_*");
+    return null;
+  }
+  try {
+    setUploading(true);
+    const url = await uploadToCloudinary(file);
+    return url;
+  } catch {
+    alert("❌ فشل رفع الصورة");
+    return null;
+  } finally {
+    setUploading(false);
+  }
 }
 /* ── أنماط ثابتة ── */
 const shimmer = { background: "linear-gradient(90deg,#6366F1,#8B5CF6,#EC4899,#6366F1)", backgroundSize: "300% auto", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", animation: "shimmer 4s linear infinite" };
@@ -43,6 +49,10 @@ export default function AdminDashboard() {
   const [prodSearch, setProdSearch] = useState("");
   const [prodEdit,   setProdEdit]   = useState(null);   // null = مغلق، object = منتج للتعديل
   const [prodForm,   setProdForm]   = useState({});
+
+  /* حالة رفع الصور */
+  const [catUploading,  setCatUploading]  = useState(false);
+  const [prodUploading, setProdUploading] = useState(false);
 
   /* الإعدادات */
   const { settings: firestoreSettings } = useSettings();
@@ -439,9 +449,9 @@ export default function AdminDashboard() {
                   <label style={lbl}>صورة القسم</label>
                   <div style={{ display: "flex", gap: 8 }}>
                     <input placeholder="https://..." value={catForm.image} onChange={e => setCatForm(f => ({ ...f, image: e.target.value }))} style={{ ...inputBase, flex: 1 }} onFocus={focusIn} onBlur={focusOut} />
-                    <label style={{ background: "#EEF2FF", color: "#6366F1", border: "1.5px solid #6366F1", borderRadius: r.md, padding: "10px 14px", fontWeight: 700, cursor: "pointer", fontSize: 13, whiteSpace: "nowrap" }}>
-                      📷 رفع
-                      <input type="file" accept="image/*" style={{ display: "none" }} onChange={async e => { const f = e.target.files?.[0]; if (f) { const b = await fileToBase64(f); setCatForm(fr => ({ ...fr, image: b })); e.target.value = ""; } }} />
+                    <label style={{ background: "#EEF2FF", color: "#6366F1", border: "1.5px solid #6366F1", borderRadius: r.md, padding: "10px 14px", fontWeight: 700, cursor: catUploading ? "wait" : "pointer", fontSize: 13, whiteSpace: "nowrap", opacity: catUploading ? 0.6 : 1 }}>
+                      {catUploading ? "⏳ جاري الرفع..." : "📷 رفع"}
+                      <input type="file" accept="image/*" disabled={catUploading} style={{ display: "none" }} onChange={async e => { const f = e.target.files?.[0]; if (f) { const url = await handleImageUpload(f, setCatUploading); if (url) setCatForm(fr => ({ ...fr, image: url })); e.target.value = ""; } }} />
                     </label>
                   </div>
                 </div>
@@ -700,9 +710,9 @@ export default function AdminDashboard() {
                 <label style={lbl}>رابط الصورة</label>
                 <div style={{ display: "flex", gap: 8 }}>
                   <input value={prodForm.image || ""} onChange={e => setProdForm(f => ({ ...f, image: e.target.value }))} style={{ ...inputBase, flex: 1, direction: "ltr", fontSize: 13 }} onFocus={focusIn} onBlur={focusOut} />
-                  <label style={{ background: "#EEF2FF", color: "#6366F1", border: "1.5px solid #6366F1", borderRadius: r.md, padding: "10px 14px", fontWeight: 700, cursor: "pointer", fontSize: 13, whiteSpace: "nowrap" }}>
-                    📷 رفع
-                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={async e => { const f = e.target.files?.[0]; if (f) { const b = await fileToBase64(f, 1280); setProdForm(fr => ({ ...fr, image: b })); e.target.value = ""; } }} />
+                  <label style={{ background: "#EEF2FF", color: "#6366F1", border: "1.5px solid #6366F1", borderRadius: r.md, padding: "10px 14px", fontWeight: 700, cursor: prodUploading ? "wait" : "pointer", fontSize: 13, whiteSpace: "nowrap", opacity: prodUploading ? 0.6 : 1 }}>
+                    {prodUploading ? "⏳ جاري الرفع..." : "📷 رفع"}
+                    <input type="file" accept="image/*" disabled={prodUploading} style={{ display: "none" }} onChange={async e => { const f = e.target.files?.[0]; if (f) { const url = await handleImageUpload(f, setProdUploading); if (url) setProdForm(fr => ({ ...fr, image: url })); e.target.value = ""; } }} />
                   </label>
                 </div>
                 {prodForm.image && <img src={prodForm.image} alt="معاينة" style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 12, marginTop: 10, border: "1px solid #E2E8F0" }} onError={e => e.currentTarget.style.display = "none"} />}

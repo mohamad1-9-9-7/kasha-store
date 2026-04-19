@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { shadow, r, inputBase, btnPrimary, focusIn, focusOut, safeParse, fmt } from "../Theme";
-import { uploadToCloudinary, CLOUD_NAME } from "../utils/cloudinary";
+import { uploadToCloudinary, isConfigured } from "../utils/cloudinary";
 import { useToast } from "../context/ToastContext";
 import { useCategories } from "../hooks/useCategories";
 import { saveProduct } from "../hooks/useProducts";
@@ -74,8 +74,10 @@ export default function AddProduct() {
     const arr = Array.from(files).slice(0, 8 - images.length);
     if (!arr.length) return;
 
-    // إذا لم يكن cloudinary مضبوطاً، استخدم base64
-    const cloudConfigured = CLOUD_NAME && CLOUD_NAME !== "YOUR_CLOUD_NAME";
+    if (!isConfigured()) {
+      toast("⚠️ Cloudinary غير مُعدّ — راجع المشرف", "error");
+      return;
+    }
 
     setUploading(true);
     const newImgs = arr.map(f => ({ url: "", uploading: true, progress: 0, name: f.name }));
@@ -85,15 +87,9 @@ export default function AddProduct() {
     for (let i = 0; i < arr.length; i++) {
       const file = arr[i];
       try {
-        let url;
-        if (cloudConfigured) {
-          url = await uploadToCloudinary(file, (prog) => {
-            setImages(prev => prev.map((img, idx) => idx === startIdx + i ? { ...img, progress: prog } : img));
-          });
-        } else {
-          // fallback: base64
-          url = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(file); });
-        }
+        const url = await uploadToCloudinary(file, (prog) => {
+          setImages(prev => prev.map((img, idx) => idx === startIdx + i ? { ...img, progress: prog } : img));
+        });
         setImages(prev => prev.map((img, idx) => idx === startIdx + i ? { ...img, url, uploading: false, progress: 100 } : img));
       } catch {
         setImages(prev => prev.map((img, idx) => idx === startIdx + i ? { ...img, uploading: false, error: true } : img));
@@ -409,11 +405,6 @@ export default function AddProduct() {
                   </div>
                 )}
 
-                {CLOUD_NAME === "YOUR_CLOUD_NAME" && (
-                  <div style={{ marginTop: 10, padding: "10px 14px", background: "#FFFBEB", borderRadius: 10, border: "1.5px solid #FDE68A", fontSize: 13, color: "#92400E" }}>
-                    ⚠️ لم يتم ضبط Cloudinary — الصور ستُحفظ محلياً (base64). سجّل في cloudinary.com وأضف بياناتك في <code>src/utils/cloudinary.js</code>
-                  </div>
-                )}
               </div>
 
               <button type="submit" disabled={!canSubmit}
