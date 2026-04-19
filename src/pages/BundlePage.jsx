@@ -35,9 +35,6 @@ function bundleDiscount(count) {
   return null;
 }
 
-/* ── نقاط ── */
-const POINTS_PER_AED = 1;
-
 export default function BundlePage() {
   const navigate = useNavigate();
   const toast    = useToast();
@@ -52,6 +49,8 @@ export default function BundlePage() {
   const { categories: allCats } = useCategories();
   const categories = useMemo(() => allCats.filter(c => products.some(p => p.category === c.name || p.category === c.id)), [allCats, products]);
   const { settings: storeSettings } = useSettings();
+  const POINTS_ENABLED = storeSettings.pointsEnabled !== false;
+  const POINTS_PER_AED = Number(storeSettings.pointsPerAED) || 1;
 
   /* ── حالة الباندل ── */
   const [bundle, setBundle]   = useState([]);
@@ -116,7 +115,7 @@ export default function BundlePage() {
       const orderId  = `BDL-${Date.now()}`;
       const cityObj  = EMIRATES.find(e => e.value === f.city);
       const cityLabel = isAr ? (cityObj?.label || f.city) : (cityObj?.labelEn || f.city);
-      const earnedPoints = Math.floor(grandTotal * POINTS_PER_AED);
+      const earnedPoints = POINTS_ENABLED ? Math.floor(grandTotal * POINTS_PER_AED) : 0;
 
       await apiFetch("/api/orders", {
         method: "POST",
@@ -131,7 +130,7 @@ export default function BundlePage() {
       });
 
       /* نقاط الولاء */
-      if (user) {
+      if (user && POINTS_ENABLED && earnedPoints > 0) {
         const newPoints = (user.points || 0) + earnedPoints;
         localStorage.setItem("user", JSON.stringify({ ...user, points: newPoints }));
         apiFetch(`/api/users/${user.phone}/points`, { method: "PUT", body: { points: newPoints } }).catch(() => {});
@@ -473,12 +472,14 @@ export default function BundlePage() {
                 )}
 
                 {/* نقاط ستكسبها */}
-                <div style={{ marginTop: 10, background: "#FAF5FF", border: "1px solid #E9D5FF", borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 16 }}>⭐</span>
-                  <span style={{ fontSize: 12, color: "#7C3AED", fontWeight: 700 }}>
-                    {isAr ? `ستربح ${Math.floor(grandTotal)} نقطة!` : `You'll earn ${Math.floor(grandTotal)} points!`}
-                  </span>
-                </div>
+                {POINTS_ENABLED && (
+                  <div style={{ marginTop: 10, background: "#FAF5FF", border: "1px solid #E9D5FF", borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 16 }}>⭐</span>
+                    <span style={{ fontSize: 12, color: "#7C3AED", fontWeight: 700 }}>
+                      {isAr ? `ستربح ${Math.floor(grandTotal * POINTS_PER_AED)} نقطة!` : `You'll earn ${Math.floor(grandTotal * POINTS_PER_AED)} points!`}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 

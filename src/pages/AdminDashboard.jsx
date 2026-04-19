@@ -600,6 +600,70 @@ export default function AdminDashboard() {
                     معاينة: {settings.announcement}
                   </div>
                 </div>
+                <div>
+                  <label style={lbl}>البريد الإلكتروني</label>
+                  <input type="email" placeholder="info@example.com" value={settings.storeEmail || ""} onChange={e => setSettings(s => ({ ...s, storeEmail: e.target.value }))} style={{ ...inputBase, direction: "ltr" }} onFocus={focusIn} onBlur={focusOut} />
+                </div>
+                <div>
+                  <label style={lbl}>عنوان المتجر</label>
+                  <input placeholder="مثال: دبي، الإمارات" value={settings.storeAddress || ""} onChange={e => setSettings(s => ({ ...s, storeAddress: e.target.value }))} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                </div>
+              </div>
+            </div>
+
+            {/* نظام النقط */}
+            <div style={CARD}>
+              <h3 style={{ fontWeight: 800, fontSize: 17, color: "#0F172A", marginBottom: 8 }}>⭐ نظام النقط (Loyalty)</h3>
+              <p style={{ fontSize: 13, color: "#64748B", marginBottom: 16 }}>تحكّم بكيفية ربح واستبدال النقط.</p>
+
+              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginBottom: 16, padding: "10px 14px", background: settings.pointsEnabled ? "#ECFDF5" : "#F8FAFC", borderRadius: 10, border: `1.5px solid ${settings.pointsEnabled ? "#10B981" : "#E2E8F0"}` }}>
+                <input type="checkbox" checked={!!settings.pointsEnabled} onChange={e => setSettings(s => ({ ...s, pointsEnabled: e.target.checked }))} style={{ width: 18, height: 18, cursor: "pointer" }} />
+                <span style={{ fontWeight: 700, fontSize: 14, color: settings.pointsEnabled ? "#10B981" : "#64748B" }}>
+                  {settings.pointsEnabled ? "✅ نظام النقط مفعّل" : "⏸️ نظام النقط متوقف"}
+                </span>
+              </label>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, opacity: settings.pointsEnabled ? 1 : 0.4, pointerEvents: settings.pointsEnabled ? "auto" : "none" }} className="admin-2col">
+                <div>
+                  <label style={lbl}>نقط لكل درهم</label>
+                  <input type="number" min="0" step="0.1" value={settings.pointsPerAED ?? 1} onChange={e => setSettings(s => ({ ...s, pointsPerAED: Number(e.target.value) || 0 }))} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>كل 1 درهم = {settings.pointsPerAED || 0} نقطة</div>
+                </div>
+                <div>
+                  <label style={lbl}>عدد النقط للاستبدال</label>
+                  <input type="number" min="1" value={settings.pointsRedeemRate ?? 100} onChange={e => setSettings(s => ({ ...s, pointsRedeemRate: Number(e.target.value) || 1 }))} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>كل {settings.pointsRedeemRate || 0} نقطة = خصم</div>
+                </div>
+                <div>
+                  <label style={lbl}>قيمة الخصم (درهم)</label>
+                  <input type="number" min="0" step="0.5" value={settings.pointsRedeemValue ?? 10} onChange={e => setSettings(s => ({ ...s, pointsRedeemValue: Number(e.target.value) || 0 }))} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>قيمة خصم المجموعة</div>
+                </div>
+              </div>
+
+              {settings.pointsEnabled && (
+                <div style={{ marginTop: 14, padding: "12px 16px", background: "#FFFBEB", borderRadius: 10, border: "1.5px solid #FDE68A", fontSize: 13, color: "#92400E", lineHeight: 1.7 }}>
+                  💡 <b>مثال:</b> طلب بـ 150 درهم يربح {Math.floor(150 * (settings.pointsPerAED || 0))} نقطة.
+                  <br />
+                  {settings.pointsRedeemRate > 0 && `كل ${settings.pointsRedeemRate} نقطة = ${settings.pointsRedeemValue || 0} درهم خصم.`}
+                </div>
+              )}
+            </div>
+
+            {/* الشحن والطلبات */}
+            <div style={CARD}>
+              <h3 style={{ fontWeight: 800, fontSize: 17, color: "#0F172A", marginBottom: 16 }}>🚚 الشحن والطلبات</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }} className="admin-2col">
+                <div>
+                  <label style={lbl}>حد الشحن المجاني (درهم)</label>
+                  <input type="number" min="0" value={settings.freeShipThreshold ?? 200} onChange={e => setSettings(s => ({ ...s, freeShipThreshold: Number(e.target.value) || 0 }))} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>طلبات فوق هذا المبلغ = شحن مجاني</div>
+                </div>
+                <div>
+                  <label style={lbl}>الحد الأدنى للطلب (درهم)</label>
+                  <input type="number" min="0" value={settings.minOrderAmount ?? 0} onChange={e => setSettings(s => ({ ...s, minOrderAmount: Number(e.target.value) || 0 }))} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>اتركه 0 لتعطيل الحد الأدنى</div>
+                </div>
               </div>
             </div>
 

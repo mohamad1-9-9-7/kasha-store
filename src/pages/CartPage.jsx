@@ -13,8 +13,6 @@ import { useSettings } from "../hooks/useSettings";
 import { useCoupons, incrementCouponUses } from "../hooks/useCoupons";
 
 /* ─────────── ثوابت ─────────── */
-const FREE_SHIP_THRESHOLD = 200; // درهم
-
 const EMIRATES = [
   { value: "abu-dhabi",      label: "أبوظبي",      labelEn: "Abu Dhabi" },
   { value: "dubai",          label: "دبي",          labelEn: "Dubai" },
@@ -38,11 +36,6 @@ function validateCoupon(coupons, code, subtotal) {
   return { coupon: c, discount };
 }
 
-/* ── نقاط ── */
-const POINTS_PER_AED    = 1;
-const POINTS_REDEEM_RATE  = 100;
-const POINTS_REDEEM_VALUE = 10;
-
 const S = {
   card: { background: "#fff", borderRadius: 20, border: "1px solid #F1F5F9", boxShadow: shadow.md, padding: "24px" },
   lbl:  { display: "block", marginBottom: 6, fontWeight: 700, fontSize: 14, color: "#334155" },
@@ -58,6 +51,14 @@ export default function CartPage() {
   const { products: allProducts } = useProducts();
   const { settings: storeSettings } = useSettings();
   const { coupons: allCoupons } = useCoupons();
+
+  /* ── إعدادات من لوحة التحكم ── */
+  const FREE_SHIP_THRESHOLD = Number(storeSettings.freeShipThreshold) || 200;
+  const MIN_ORDER_AMOUNT    = Number(storeSettings.minOrderAmount) || 0;
+  const POINTS_ENABLED      = storeSettings.pointsEnabled !== false;
+  const POINTS_PER_AED      = Number(storeSettings.pointsPerAED) || 1;
+  const POINTS_REDEEM_RATE  = Number(storeSettings.pointsRedeemRate) || 100;
+  const POINTS_REDEEM_VALUE = Number(storeSettings.pointsRedeemValue) || 10;
   const t  = k => T[lang]?.[k] ?? T.ar[k] ?? k;
   const isAr = lang === "ar";
   const dir  = isAr ? "rtl" : "ltr";
@@ -87,8 +88,8 @@ export default function CartPage() {
 
   const user          = safeParse("user");
   const userPoints    = user?.points || 0;
-  const maxRedeemSets = Math.floor(userPoints / POINTS_REDEEM_RATE);
-  const pointsDiscount = redeemPoints ? maxRedeemSets * POINTS_REDEEM_VALUE : 0;
+  const maxRedeemSets = POINTS_ENABLED ? Math.floor(userPoints / POINTS_REDEEM_RATE) : 0;
+  const pointsDiscount = (POINTS_ENABLED && redeemPoints) ? maxRedeemSets * POINTS_REDEEM_VALUE : 0;
 
 
   /* ── تعبئة بيانات المستخدم ── */
@@ -172,6 +173,7 @@ export default function CartPage() {
   /* ── إرسال الطلب ── */
   const submit = async () => {
     if (!items?.length)                                          return toast(isAr ? "السلة فارغة" : "Cart is empty", "error");
+    if (MIN_ORDER_AMOUNT > 0 && subtotal < MIN_ORDER_AMOUNT)      return toast(isAr ? `الحد الأدنى للطلب ${fmt(MIN_ORDER_AMOUNT)}` : `Minimum order: ${fmt(MIN_ORDER_AMOUNT)}`, "error");
     if (!form.name || !form.phone || !form.city || !form.address) return toast(isAr ? "يرجى تعبئة جميع البيانات" : "Please fill in all fields", "error");
     if (form.payMethod === "bank" && !form.transferRef)          return toast(isAr ? "أدخل رقم مرجع التحويل" : "Enter transfer reference", "error");
     setLoading(true);
@@ -179,7 +181,7 @@ export default function CartPage() {
       const orderId   = `ORD-${Date.now()}`;
       const cityObj   = EMIRATES.find(e => e.value === form.city);
       const cityLabel = isAr ? cityObj?.label : cityObj?.labelEn || form.city;
-      const earned    = Math.floor(grandTotal * POINTS_PER_AED);
+      const earned    = POINTS_ENABLED ? Math.floor(grandTotal * POINTS_PER_AED) : 0;
 
       await apiFetch("/api/orders", {
         method: "POST",
@@ -513,7 +515,7 @@ export default function CartPage() {
               </div>
 
               {/* نقاط الولاء */}
-              {userPoints >= POINTS_REDEEM_RATE && (
+              {POINTS_ENABLED && userPoints >= POINTS_REDEEM_RATE && (
                 <div style={S.card}>
                   <h3 style={{ fontWeight: 800, fontSize: 16, color: "#0F172A", marginBottom: 14 }}>⭐ {isAr ? "نقاط الولاء" : "Loyalty Points"}</h3>
                   <div style={{ background: "#FAF5FF", border: "1.5px solid #E9D5FF", borderRadius: 12, padding: "14px" }}>
@@ -646,12 +648,14 @@ export default function CartPage() {
               </div>
 
               {/* نقاط ستكسبها */}
-              <div style={{ background: "#FAF5FF", border: "1.5px solid #E9D5FF", borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 20 }}>⭐</span>
-                <span style={{ fontSize: 13, color: "#7C3AED", fontWeight: 700 }}>
-                  {isAr ? `ستربح ${Math.floor(grandTotal)} نقطة من هذا الطلب!` : `You'll earn ${Math.floor(grandTotal)} points from this order!`}
-                </span>
-              </div>
+              {POINTS_ENABLED && (
+                <div style={{ background: "#FAF5FF", border: "1.5px solid #E9D5FF", borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>⭐</span>
+                  <span style={{ fontSize: 13, color: "#7C3AED", fontWeight: 700 }}>
+                    {isAr ? `ستربح ${Math.floor(grandTotal * POINTS_PER_AED)} نقطة من هذا الطلب!` : `You'll earn ${Math.floor(grandTotal * POINTS_PER_AED)} points from this order!`}
+                  </span>
+                </div>
+              )}
 
               {/* زر التأكيد */}
               <button onClick={submit} disabled={loading}

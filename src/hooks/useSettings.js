@@ -9,6 +9,16 @@ const DEFAULTS = {
   tiktok: "",
   facebook: "",
   twitter: "",
+  storeEmail: "",
+  storeAddress: "",
+  // نظام النقط
+  pointsEnabled:     true,
+  pointsPerAED:      1,    // كم نقطة لكل درهم
+  pointsRedeemRate:  100,  // كم نقطة مطلوبة للاستبدال
+  pointsRedeemValue: 10,   // قيمة الخصم (درهم) لكل مجموعة نقط
+  // الشحن والطلب
+  freeShipThreshold: 200,  // حد الشحن المجاني (درهم)
+  minOrderAmount:    0,    // الحد الأدنى للطلب (درهم)
 };
 
 export function useSettings() {

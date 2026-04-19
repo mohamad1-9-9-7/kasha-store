@@ -10,27 +10,49 @@ const DEFAULTS = {
   tiktok: "",
   facebook: "",
   twitter: "",
+  storeEmail: "",
+  storeAddress: "",
+  pointsEnabled: true,
+  pointsPerAED: 1,
+  pointsRedeemRate: 100,
+  pointsRedeemValue: 10,
+  freeShipThreshold: 200,
+  minOrderAmount: 0,
 };
 
-const ALLOWED_KEYS = Object.keys(DEFAULTS);
+// key → type
+const FIELD_TYPES = {
+  storeName: "string", whatsapp: "string", announcement: "string",
+  instagram: "string", tiktok: "string", facebook: "string", twitter: "string",
+  storeEmail: "string", storeAddress: "string",
+  pointsEnabled: "bool",
+  pointsPerAED: "number", pointsRedeemRate: "number", pointsRedeemValue: "number",
+  freeShipThreshold: "number", minOrderAmount: "number",
+};
+
+function coerce(val, type) {
+  if (type === "bool")   return val === true || val === "true" || val === 1 || val === "1";
+  if (type === "number") { const n = Number(val); return Number.isFinite(n) ? n : 0; }
+  return String(val ?? "");
+}
 
 // GET settings (public)
 router.get("/", async (req, res) => {
   try {
     const { rows } = await pool.query("SELECT data FROM settings WHERE id = 'main'");
-    res.json(rows.length ? rows[0].data : DEFAULTS);
+    res.json(rows.length ? { ...DEFAULTS, ...rows[0].data } : DEFAULTS);
   } catch (e) {
     console.error("GET /settings:", e);
     res.status(500).json({ error: "خطأ في الخادم" });
   }
 });
 
-// PUT update settings (admin) — whitelist keys
+// PUT update settings (admin) — whitelist keys with typed coercion
 router.put("/", requireAdmin, async (req, res) => {
   try {
     const sanitized = {};
-    for (const k of ALLOWED_KEYS) {
-      if (k in (req.body || {})) sanitized[k] = String(req.body[k] ?? "");
+    for (const [k, type] of Object.entries(FIELD_TYPES)) {
+      if (k in (req.body || {})) sanitized[k] = coerce(req.body[k], type);
     }
     const data = { ...DEFAULTS, ...sanitized };
     await pool.query(
