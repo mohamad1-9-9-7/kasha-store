@@ -60,8 +60,8 @@ export default function AdminDashboard() {
   const [settings, setSettings] = useState(firestoreSettings);
   const [settingsSaved, setSettingsSaved] = useState(false);
 
-  // مزامنة الإعدادات من Firebase
-  useEffect(() => { setSettings(s => ({ ...firestoreSettings, ...s })); }, [firestoreSettings]);
+  // مزامنة الإعدادات من السيرفر — السيرفر هو المصدر الوحيد
+  useEffect(() => { setSettings(firestoreSettings); }, [firestoreSettings]);
 
   useEffect(() => {
     if (localStorage.getItem("isAdmin") !== "true") { navigate("/user-login"); return; }
