@@ -6,6 +6,7 @@ import { ProductSkeleton } from "../components/Skeleton";
 import { useLang } from "../context/LanguageContext";
 import { T } from "../i18n";
 import { useProducts } from "../hooks/useProducts";
+import { fuzzySearch } from "../utils/fuzzySearch";
 
 export default function SearchPage() {
   const { lang } = useLang();
@@ -15,19 +16,8 @@ export default function SearchPage() {
   const [input, setInput] = useState(q);
   const { products, loading } = useProducts();
 
-  const results = useMemo(() => {
-    if (!q.trim()) return [];
-    const s = q.toLowerCase();
-    return products.filter(p =>
-      !p.hidden && (
-        (p.name || "").toLowerCase().includes(s) ||
-        (p.category || "").toLowerCase().includes(s) ||
-        (p.brand || "").toLowerCase().includes(s) ||
-        (p.description || "").toLowerCase().includes(s) ||
-        (p.badges || []).some(b => b.toLowerCase().includes(s))
-      )
-    );
-  }, [products, q]);
+  // Fuzzy search with Arabic normalization + typo tolerance
+  const results = useMemo(() => fuzzySearch(products, q, 100), [products, q]);
 
   const search = (e) => {
     e.preventDefault();

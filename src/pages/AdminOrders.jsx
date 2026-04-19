@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiFetch } from "../api";
 import { shadow, r, fmt } from "../Theme";
+import { printWaybill } from "../utils/waybill";
+import { useSettings } from "../hooks/useSettings";
 
 const STATUSES = [
   { val: "NEW",        label: "جديد",          bg: "#EEF2FF", col: "#6366F1" },
@@ -21,6 +23,7 @@ const fmtDate = (ts) => { try { const d = ts?.toDate ? ts.toDate() : new Date(ts
 
 export default function AdminOrders() {
   const navigate = useNavigate();
+  const { settings: storeSettings } = useSettings();
   const [orders, setOrders]           = useState([]);
   const [loading, setLoading]         = useState(true);
   const [search, setSearch]           = useState("");
@@ -271,6 +274,10 @@ export default function AdminOrders() {
                             {s.label}
                           </button>
                         ))}
+                        <button onClick={() => printWaybill(o, storeSettings)}
+                          style={{ background: "#EEF2FF", color: "#6366F1", border: "1.5px solid #C7D2FE", borderRadius: 10, padding: "7px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+                          📦 بوليصة شحن
+                        </button>
                         <button onClick={() => deleteOrder(o.docId)}
                           style={{ marginRight: "auto", background: "#FEF2F2", color: "#EF4444", border: "1.5px solid #FECACA", borderRadius: 10, padding: "7px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
                           🗑️ حذف

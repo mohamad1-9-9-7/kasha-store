@@ -35,15 +35,40 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
-// POST create order (authenticated user) — validates & decrements stock atomically
-router.post("/", requireAuth, async (req, res) => {
+// POST create order — supports both authenticated users AND guest checkout
+router.post("/", async (req, res) => {
   const client = await pool.connect();
   try {
+    // Decode optional token (guest = no token)
+    let user = null;
+    const auth = req.headers.authorization;
+    if (auth?.startsWith("Bearer ")) {
+      try {
+        const jwt = require("jsonwebtoken");
+        user = jwt.verify(auth.slice(7), process.env.JWT_SECRET);
+      } catch { /* invalid token → treat as guest */ }
+    }
+
     const id = req.body.id || uuidv4();
     const customer = { ...(req.body.customer || {}) };
-    if (req.user?.role !== "admin") {
-      customer.phone = req.user?.id || customer.phone;
+
+    // Logged-in non-admin users must use their own phone; guests can set their own
+    if (user && user.role !== "admin") {
+      customer.phone = user.id || customer.phone;
     }
+
+    // Guest validation: must have name, phone, city, address
+    if (!user) {
+      if (!customer.name || !customer.phone || !customer.city || !customer.address) {
+        return res.status(400).json({ error: "البيانات ناقصة للطلب كزائر" });
+      }
+      if (!/^05\d{8}$/.test(String(customer.phone).replace(/\D/g, "").replace(/^971/, "0"))) {
+        // accept local 05... or international 971... — loose check
+        const digits = String(customer.phone).replace(/\D/g, "");
+        if (digits.length < 9) return res.status(400).json({ error: "رقم الهاتف غير صالح" });
+      }
+    }
+
     const orderItems = Array.isArray(req.body.items) ? req.body.items : [];
 
     await client.query("BEGIN");
@@ -76,6 +101,7 @@ router.post("/", requireAuth, async (req, res) => {
       customer,
       id,
       status: "NEW",
+      isGuest: !user,
       createdAt: new Date().toISOString(),
     };
     await client.query("INSERT INTO orders (id, data) VALUES ($1, $2)", [id, order]);

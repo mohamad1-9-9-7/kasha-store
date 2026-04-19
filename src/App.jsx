@@ -19,6 +19,8 @@ import WishlistPage from "./pages/WishlistPage";
 import NotFound from "./pages/NotFound";
 import BundlePage from "./pages/BundlePage";
 import AdminLogin from "./pages/AdminLogin";
+import BulkImport from "./pages/BulkImport";
+import AnalyticsPixels from "./components/AnalyticsPixels";
 
 // ✅ قراءة آمنة من localStorage (تمنع كسر التطبيق لو JSON فاسد)
 const safeGetUser = () => {
@@ -43,28 +45,18 @@ function App() {
   }
 
   return (
+    <>
+    <AnalyticsPixels />
     <Routes>
-      <Route path="/" element={<Navigate to="/user-login" replace />} />
+      <Route path="/" element={<Navigate to="/home" replace />} />
       <Route path="/user-login" element={<UserLogin />} />
       <Route path="/admin-login" element={<AdminLogin />} />
       <Route path="/register" element={<Register />} />
 
-      <Route
-        path="/home"
-        element={user ? <HomePage /> : <Navigate to="/user-login" replace />}
-      />
-      <Route
-        path="/category/:categoryId"
-        element={user ? <CategoryPage /> : <Navigate to="/user-login" replace />}
-      />
-      <Route
-        path="/product/:id"
-        element={user ? <ProductDetails /> : <Navigate to="/user-login" replace />}
-      />
-      <Route
-        path="/cart"
-        element={user ? <CartPage /> : <Navigate to="/user-login" replace />}
-      />
+      <Route path="/home" element={<HomePage />} />
+      <Route path="/category/:categoryId" element={<CategoryPage />} />
+      <Route path="/product/:id" element={<ProductDetails />} />
+      <Route path="/cart" element={<CartPage />} />
 
       <Route
         path="/admin-dashboard"
@@ -90,6 +82,10 @@ function App() {
         path="/coupons"
         element={isAdmin ? <CouponsPage /> : <Navigate to="/admin-login" replace />}
       />
+      <Route
+        path="/bulk-import"
+        element={isAdmin ? <BulkImport /> : <Navigate to="/admin-login" replace />}
+      />
 
       {/* ✅ صفحات المستخدم */}
       <Route
@@ -113,6 +109,7 @@ function App() {
       {/* ✅ 404 */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </>
   );
 }
 

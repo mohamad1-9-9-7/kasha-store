@@ -6,6 +6,7 @@ import { T } from "../i18n";
 import { useCategories } from "../hooks/useCategories";
 import { useProducts } from "../hooks/useProducts";
 import LangToggle from "../components/LangToggle";
+import SearchAutocomplete from "../components/SearchAutocomplete";
 
 /* ─── أيقونات السوشيال ─── */
 const TikTokIcon = ({ size = 24 }) => (
@@ -203,18 +204,10 @@ export default function HomePage() {
             <span style={{ marginRight: 4 }}>✨</span>
           </Link>
 
-          {/* سيرش */}
-          <form onSubmit={handleSearch} className="nav-search" style={{ flex: 1, maxWidth: 420, position: "relative" }}>
-            <input
-              value={searchQ}
-              onChange={e => setSearchQ(e.target.value)}
-              placeholder={t("nav_search_ph")}
-              style={{ width: "100%", padding: "10px 44px 10px 16px", borderRadius: 12, border: "1.5px solid #E2E8F0", fontSize: 14, outline: "none", background: "#F8FAFC", boxSizing: "border-box", fontFamily: "'Tajawal',sans-serif", transition: "border-color .2s, box-shadow .2s" }}
-              onFocus={e => { e.target.style.borderColor = "#6366F1"; e.target.style.boxShadow = "0 0 0 3px rgba(99,102,241,.1)"; }}
-              onBlur={e => { e.target.style.borderColor = "#E2E8F0"; e.target.style.boxShadow = "none"; }}
-            />
-            <button type="submit" style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 17, color: "#94A3B8", padding: 4 }}>🔍</button>
-          </form>
+          {/* سيرش مع Autocomplete */}
+          <div className="nav-search" style={{ flex: 1, maxWidth: 420 }}>
+            <SearchAutocomplete placeholder={t("nav_search_ph")} />
+          </div>
 
           {/* أيقونات يمين */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: "auto" }}>

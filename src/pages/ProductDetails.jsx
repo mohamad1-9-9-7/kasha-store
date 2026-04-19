@@ -97,9 +97,14 @@ export default function ProductDetails() {
     setProduct(found);
     setActiveImg(0);
     setImgLoaded(false);
-    // Open Graph meta tags
+    // Open Graph meta tags — use custom metaTitle/metaDescription if set
     if (found) {
-      document.title = `${found.name} — كشخة`;
+      const metaTitle = (found.metaTitle || "").trim() || `${found.name} — كشخة`;
+      const metaDesc = (found.metaDescription || "").trim()
+        || found.description
+        || `${found.name} — ${fmt(found.price)} درهم`;
+
+      document.title = metaTitle;
       const setMeta = (prop, val, isName) => {
         const sel = isName ? `meta[name="${prop}"]` : `meta[property="${prop}"]`;
         let el = document.querySelector(sel);
@@ -107,16 +112,15 @@ export default function ProductDetails() {
         el.content = val;
       };
       const url = window.location.href;
-      const desc = found.description || `${found.name} — ${fmt(found.price)} درهم`;
-      setMeta("og:title", found.name);
-      setMeta("og:description", desc);
+      setMeta("og:title", metaTitle);
+      setMeta("og:description", metaDesc);
       setMeta("og:image", found.image || "");
       setMeta("og:url", url);
       setMeta("og:type", "product");
-      setMeta("twitter:title", found.name);
-      setMeta("twitter:description", desc);
+      setMeta("twitter:title", metaTitle);
+      setMeta("twitter:description", metaDesc);
       setMeta("twitter:image", found.image || "");
-      setMeta("description", desc, true);
+      setMeta("description", metaDesc, true);
     }
     return () => { document.title = "كشخة"; };
   }, [id, allProds]);

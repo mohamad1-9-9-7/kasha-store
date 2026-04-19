@@ -44,7 +44,7 @@ export default function AddProduct() {
   const toast    = useToast();
   const { categories: rawCats } = useCategories();
   const categories = rawCats.map(c => typeof c === "string" ? c : c?.name).filter(Boolean);
-  const [form, setForm] = useState({ name: "", nameEn: "", price: "", oldPrice: "", category: "", brand: "", stock: "", description: "", descriptionEn: "", badges: "", featured: false });
+  const [form, setForm] = useState({ name: "", nameEn: "", price: "", oldPrice: "", category: "", brand: "", stock: "", weight: "", description: "", descriptionEn: "", badges: "", metaTitle: "", metaDescription: "", featured: false });
 
   // صور متعددة: [{ url, uploading, progress }]
   const [images, setImages]     = useState([]);
@@ -160,6 +160,7 @@ export default function AddProduct() {
       category: form.category,
       brand: form.brand.trim(),
       stock: form.stock ? parseInt(form.stock) : 0,
+      weight: form.weight !== "" ? Number(form.weight) : undefined,
       description: form.description.trim(),
       descriptionEn: form.descriptionEn.trim(),
       badges: form.badges.split(",").map(b => b.trim()).filter(Boolean),
@@ -167,6 +168,8 @@ export default function AddProduct() {
       images: readyImgs.map(img => img.url),
       featured: form.featured,
       variants: cleanVariants,
+      metaTitle: form.metaTitle.trim(),
+      metaDescription: form.metaDescription.trim(),
       createdAt: new Date().toISOString(),
     };
     try {
@@ -230,7 +233,7 @@ export default function AddProduct() {
                 </div>
               </div>
 
-              <div className="ap-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div className="ap-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
                 <div>
                   <label style={lbl}>القسم *</label>
                   <select value={form.category} onChange={set("category")} required style={{ ...inputBase, cursor: "pointer" }} onFocus={focusIn} onBlur={focusOut}>
@@ -240,6 +243,10 @@ export default function AddProduct() {
                 <div>
                   <label style={lbl}>المخزون</label>
                   <input type="number" min="0" placeholder="0" value={form.stock} onChange={set("stock")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                </div>
+                <div>
+                  <label style={lbl}>الوزن (كغ) <span style={{ color: "#94A3B8", fontSize: 11 }}>للشحن</span></label>
+                  <input type="number" min="0" step="0.01" placeholder="0.5" value={form.weight} onChange={set("weight")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
                 </div>
               </div>
 
@@ -260,6 +267,24 @@ export default function AddProduct() {
               <div>
                 <label style={lbl}>الشارات التسويقية (مفصولة بفاصلة)</label>
                 <input placeholder="الأكثر مبيعاً, شحن سريع, ضمان سنة" value={form.badges} onChange={set("badges")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+              </div>
+
+              {/* SEO */}
+              <div style={{ border: "1.5px solid #E0E7FF", borderRadius: 16, padding: "16px 18px", background: "#F8FAFF" }}>
+                <div style={{ fontWeight: 800, fontSize: 14, color: "#0F172A", marginBottom: 4 }}>🔎 إعدادات SEO (اختياري)</div>
+                <div style={{ fontSize: 12, color: "#64748B", marginBottom: 14 }}>تظهر في محركات البحث ومشاركات السوشيال ميديا</div>
+                <div style={{ display: "grid", gap: 12 }}>
+                  <div>
+                    <label style={lbl}>Meta Title <span style={{ color: "#94A3B8", fontSize: 11 }}>(60 حرف تقريباً)</span></label>
+                    <input value={form.metaTitle} onChange={set("metaTitle")} maxLength={70} placeholder={form.name || "عنوان المنتج لمحركات البحث"} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                    <div style={{ fontSize: 11, color: (form.metaTitle || "").length > 60 ? "#EF4444" : "#94A3B8", marginTop: 3 }}>{(form.metaTitle || "").length}/70</div>
+                  </div>
+                  <div>
+                    <label style={lbl}>Meta Description <span style={{ color: "#94A3B8", fontSize: 11 }}>(160 حرف تقريباً)</span></label>
+                    <textarea value={form.metaDescription} onChange={set("metaDescription")} maxLength={170} rows={2} placeholder={form.description?.slice(0, 150) || "وصف المنتج لمحركات البحث..."} style={{ ...inputBase, resize: "vertical" }} onFocus={focusIn} onBlur={focusOut} />
+                    <div style={{ fontSize: 11, color: (form.metaDescription || "").length > 160 ? "#EF4444" : "#94A3B8", marginTop: 3 }}>{(form.metaDescription || "").length}/170</div>
+                  </div>
+                </div>
               </div>
 
               {/* ═══ الخيارات والمتغيرات ═══ */}

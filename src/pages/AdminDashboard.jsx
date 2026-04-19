@@ -131,11 +131,14 @@ export default function AdminDashboard() {
       price:       parseFloat(prodForm.price) || current.price,
       oldPrice:    prodForm.oldPrice ? parseFloat(prodForm.oldPrice) : undefined,
       stock:       prodForm.stock !== "" ? parseInt(prodForm.stock) : current.stock,
+      weight:      prodForm.weight !== "" && prodForm.weight !== undefined ? Number(prodForm.weight) : current.weight,
       description: prodForm.description,
       category:    prodForm.category,
       brand:       (prodForm.brand || "").trim(),
       badges:      String(prodForm.badges || "").split(",").map(b => b.trim()).filter(Boolean),
       image:       prodForm.image || current.image,
+      metaTitle:   (prodForm.metaTitle || "").trim(),
+      metaDescription: (prodForm.metaDescription || "").trim(),
     };
     try {
       await replaceProduct(updated);
@@ -236,6 +239,7 @@ export default function AdminDashboard() {
           </Link>
           <Link to="/coupons"      style={{ background: "#FDF4FF", color: "#A855F7", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13 }}>🎟️ الكوبونات</Link>
           <Link to="/add-product"  style={{ background: "#ECFDF5", color: "#10B981", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13 }}>➕ منتج جديد</Link>
+          <Link to="/bulk-import"  style={{ background: "#F0F9FF", color: "#0EA5E9", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13 }}>📥 استيراد CSV</Link>
           <Link to="/customers"    style={{ background: "#FFFBEB", color: "#F59E0B", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13 }}>👥 العملاء</Link>
           <Link to="/home" style={{ background: "rgba(255,255,255,.08)", color: "rgba(255,255,255,.7)", border: "1.5px solid rgba(255,255,255,.12)", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13 }}>← المتجر</Link>
         </div>
@@ -685,6 +689,9 @@ export default function AdminDashboard() {
               </div>
             </div>
 
+            {/* مناطق الشحن */}
+            <ShippingZonesEditor settings={settings} setSettings={setSettings} />
+
             {/* ضريبة VAT */}
             <div style={CARD}>
               <h3 style={{ fontWeight: 800, fontSize: 17, color: "#0F172A", marginBottom: 16 }}>🧾 ضريبة القيمة المضافة (VAT)</h3>
@@ -741,6 +748,31 @@ export default function AdminDashboard() {
               </div>
             </div>
 
+            {/* بكسلات التحليلات */}
+            <div style={CARD}>
+              <h3 style={{ fontWeight: 800, fontSize: 17, color: "#0F172A", marginBottom: 8 }}>📊 بكسلات التتبع والتحليلات</h3>
+              <p style={{ fontSize: 13, color: "#64748B", marginBottom: 16 }}>
+                الصق ID فقط (بدون <code>https://</code> أو أكواد JavaScript). الكود يُحمّل تلقائياً للزوار.
+              </p>
+              <div style={{ display: "grid", gap: 14 }}>
+                <div>
+                  <label style={lbl}>🔵 Facebook/Meta Pixel ID</label>
+                  <input placeholder="1234567890123456" value={settings.fbPixelId || ""} onChange={e => setSettings(s => ({ ...s, fbPixelId: e.target.value.trim() }))} style={{ ...inputBase, direction: "ltr" }} onFocus={focusIn} onBlur={focusOut} />
+                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>من Meta Business → Events Manager</div>
+                </div>
+                <div>
+                  <label style={lbl}>🟠 Google Analytics (GA4) Measurement ID</label>
+                  <input placeholder="G-XXXXXXXXXX" value={settings.gaMeasurementId || ""} onChange={e => setSettings(s => ({ ...s, gaMeasurementId: e.target.value.trim() }))} style={{ ...inputBase, direction: "ltr" }} onFocus={focusIn} onBlur={focusOut} />
+                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>من analytics.google.com → Admin → Data Streams</div>
+                </div>
+                <div>
+                  <label style={lbl}>⚫ TikTok Pixel ID</label>
+                  <input placeholder="ABCDEFGHIJ1234567890" value={settings.tiktokPixelId || ""} onChange={e => setSettings(s => ({ ...s, tiktokPixelId: e.target.value.trim() }))} style={{ ...inputBase, direction: "ltr" }} onFocus={focusIn} onBlur={focusOut} />
+                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>من TikTok Ads Manager → Assets → Events</div>
+                </div>
+              </div>
+            </div>
+
             {/* زر الحفظ */}
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
               <button onClick={handleSaveSettings} style={{ ...btnPrimary, padding: "13px 32px", fontSize: 15 }}>
@@ -752,6 +784,9 @@ export default function AdminDashboard() {
                 </span>
               )}
             </div>
+
+            {/* نسخ احتياطي */}
+            <BackupCard />
 
             {/* خطر */}
             <div style={{ background: "#fff", borderRadius: 20, border: "1.5px solid #FECACA", padding: "24px" }}>
@@ -804,7 +839,7 @@ export default function AdminDashboard() {
                   <input type="number" min="0" step="0.01" value={prodForm.oldPrice || ""} onChange={e => setProdForm(f => ({ ...f, oldPrice: e.target.value }))} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
                 </div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                 <div>
                   <label style={lbl}>القسم</label>
                   <select value={prodForm.category || ""} onChange={e => setProdForm(f => ({ ...f, category: e.target.value }))} style={{ ...inputBase, cursor: "pointer" }} onFocus={focusIn} onBlur={focusOut}>
@@ -814,6 +849,10 @@ export default function AdminDashboard() {
                 <div>
                   <label style={lbl}>المخزون</label>
                   <input type="number" min="0" value={prodForm.stock ?? ""} onChange={e => setProdForm(f => ({ ...f, stock: e.target.value }))} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                </div>
+                <div>
+                  <label style={lbl}>الوزن (كغ)</label>
+                  <input type="number" min="0" step="0.01" value={prodForm.weight ?? ""} onChange={e => setProdForm(f => ({ ...f, weight: e.target.value }))} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
                 </div>
               </div>
               <div>
@@ -827,6 +866,19 @@ export default function AdminDashboard() {
               <div>
                 <label style={lbl}>الشارات (مفصولة بفاصلة)</label>
                 <input value={prodForm.badges || ""} onChange={e => setProdForm(f => ({ ...f, badges: e.target.value }))} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+              </div>
+
+              {/* SEO fields */}
+              <div style={{ background: "#F8FAFF", border: "1.5px solid #E0E7FF", borderRadius: 12, padding: "14px", display: "grid", gap: 10 }}>
+                <div style={{ fontWeight: 800, fontSize: 13, color: "#0F172A" }}>🔎 SEO</div>
+                <div>
+                  <label style={lbl}>Meta Title</label>
+                  <input value={prodForm.metaTitle || ""} onChange={e => setProdForm(f => ({ ...f, metaTitle: e.target.value }))} maxLength={70} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                </div>
+                <div>
+                  <label style={lbl}>Meta Description</label>
+                  <textarea value={prodForm.metaDescription || ""} onChange={e => setProdForm(f => ({ ...f, metaDescription: e.target.value }))} maxLength={170} rows={2} style={{ ...inputBase, resize: "vertical" }} onFocus={focusIn} onBlur={focusOut} />
+                </div>
               </div>
               <div>
                 <label style={lbl}>رابط الصورة</label>
@@ -1062,11 +1114,32 @@ function AbandonedCarts({ settings }) {
 
   return (
     <div style={{ animation: "fadeUp .4s ease both" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <h2 style={{ fontWeight: 900, fontSize: 22, color: "#0F172A" }}>🛒 السلات المهجورة</h2>
-        <button onClick={load} style={{ background: "#EEF2FF", color: "#6366F1", border: "1.5px solid #C7D2FE", borderRadius: 10, padding: "8px 14px", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
-          🔄 تحديث
-        </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={async () => {
+            const withEmail = carts.filter(c => c.customer?.email).length;
+            if (!withEmail) return alert("لا يوجد سلات معها بريد إلكتروني");
+            if (!window.confirm(`إرسال تذكير لـ ${withEmail} عميل؟`)) return;
+            setBusy(true);
+            try {
+              const res = await apiFetch("/api/abandoned-carts/admin/remind-all", {
+                method: "POST",
+                body: { storeUrl: window.location.origin, maxAgeHours: 168 },
+              });
+              alert(`✅ تم إرسال ${res.sent} تذكير\n⚠️ متخطّى (بدون إيميل): ${res.skipped}\n❌ فشل: ${res.failed}`);
+              load();
+            } catch (e) {
+              alert("❌ " + e.message);
+            } finally { setBusy(false); }
+          }} disabled={busy}
+            style={{ background: "linear-gradient(135deg,#F59E0B,#D97706)", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 800, fontSize: 13, cursor: busy ? "wait" : "pointer", fontFamily: "'Tajawal',sans-serif", boxShadow: "0 4px 12px rgba(245,158,11,.3)" }}>
+            ✉️ إرسال تذكير للكل
+          </button>
+          <button onClick={load} style={{ background: "#EEF2FF", color: "#6366F1", border: "1.5px solid #C7D2FE", borderRadius: 10, padding: "8px 14px", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+            🔄 تحديث
+          </button>
+        </div>
       </div>
 
       <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 12, padding: "10px 14px", fontSize: 13, color: "#B45309", marginBottom: 14 }}>
@@ -1115,11 +1188,34 @@ function AbandonedCarts({ settings }) {
               ))}
             </div>
 
+            {c.lastReminderAt && (
+              <div style={{ fontSize: 11, color: "#0284C7", marginBottom: 8 }}>
+                ✉️ آخر تذكير: {fmtTime(c.lastReminderAt)}
+              </div>
+            )}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button onClick={() => waFollow(c)}
                 style={{ flex: 1, background: "#25D366", color: "#fff", border: "none", borderRadius: 10, padding: "10px 14px", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
                 💬 متابعة واتساب
               </button>
+              {c.customer?.email && (
+                <button disabled={busy} onClick={async () => {
+                  setBusy(true);
+                  try {
+                    const res = await apiFetch(`/api/abandoned-carts/admin/${encodeURIComponent(c.id)}/remind`, {
+                      method: "POST",
+                      body: { storeUrl: window.location.origin },
+                    });
+                    alert(`✅ تم إرسال إيميل تذكير إلى ${res.sentTo}`);
+                    load();
+                  } catch (e) {
+                    alert("❌ " + e.message);
+                  } finally { setBusy(false); }
+                }}
+                  style={{ background: "#EEF2FF", color: "#6366F1", border: "1.5px solid #C7D2FE", borderRadius: 10, padding: "10px 14px", fontWeight: 800, fontSize: 13, cursor: busy ? "wait" : "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+                  ✉️ إيميل تذكير
+                </button>
+              )}
               <button disabled={busy} onClick={() => del(c.id)}
                 style={{ background: "#FEF2F2", color: "#EF4444", border: "1.5px solid #FECACA", borderRadius: 10, padding: "10px 14px", fontWeight: 800, fontSize: 13, cursor: busy ? "wait" : "pointer", fontFamily: "'Tajawal',sans-serif" }}>
                 🗑️ حذف
@@ -1127,6 +1223,178 @@ function AbandonedCarts({ settings }) {
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════ مناطق الشحن ════════════════════ */
+const EMIRATE_OPTS = [
+  { value: "dubai", label: "دبي" },
+  { value: "abu-dhabi", label: "أبوظبي" },
+  { value: "sharjah", label: "الشارقة" },
+  { value: "ajman", label: "عجمان" },
+  { value: "umm-al-quwain", label: "أم القيوين" },
+  { value: "ras-al-khaimah", label: "رأس الخيمة" },
+  { value: "fujairah", label: "الفجيرة" },
+];
+
+function ShippingZonesEditor({ settings, setSettings }) {
+  const parseZ = () => {
+    try { return JSON.parse(settings.shippingZones || "[]") || []; } catch { return []; }
+  };
+  const zones = parseZ();
+
+  const save = (next) => {
+    setSettings((s) => ({ ...s, shippingZones: JSON.stringify(next) }));
+  };
+
+  const addZone = () => save([...zones, { name: "منطقة جديدة", emirates: [], fee: 15, freeOver: 200, perKg: 0 }]);
+  const updateZone = (i, patch) => save(zones.map((z, idx) => (idx === i ? { ...z, ...patch } : z)));
+  const delZone = (i) => save(zones.filter((_, idx) => idx !== i));
+  const toggleEmirate = (i, val) => {
+    const z = zones[i];
+    const list = new Set(z.emirates || []);
+    list.has(val) ? list.delete(val) : list.add(val);
+    updateZone(i, { emirates: Array.from(list) });
+  };
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #F1F5F9", boxShadow: shadow.md, padding: "24px" }}>
+      <h3 style={{ fontWeight: 800, fontSize: 17, color: "#0F172A", marginBottom: 8 }}>🚚 مناطق الشحن (حسب الإمارة + الوزن)</h3>
+      <p style={{ fontSize: 13, color: "#64748B", marginBottom: 16 }}>
+        قسّم الإمارات لمناطق برسوم مختلفة. لو فضيت المناطق، بيشتغل الشحن الثابت من الأعلى.
+      </p>
+
+      {zones.map((z, i) => (
+        <div key={i} style={{ border: "1.5px solid #E0E7FF", borderRadius: 14, padding: "16px", marginBottom: 12, background: "#F8FAFF" }}>
+          <div style={{ display: "flex", gap: 10, marginBottom: 10, alignItems: "center" }}>
+            <input value={z.name} onChange={(e) => updateZone(i, { name: e.target.value })}
+              placeholder="اسم المنطقة"
+              style={{ flex: 1, border: "1.5px solid #E2E8F0", borderRadius: 10, padding: "8px 12px", fontSize: 14, fontWeight: 700, fontFamily: "'Tajawal',sans-serif", outline: "none" }} />
+            <button onClick={() => delZone(i)} style={{ background: "#FEF2F2", color: "#EF4444", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>✕ حذف</button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>رسوم الشحن الأساسية (درهم)</label>
+              <input type="number" min="0" value={z.fee ?? 0} onChange={(e) => updateZone(i, { fee: Number(e.target.value) || 0 })} style={inputBase} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>شحن مجاني فوق (درهم)</label>
+              <input type="number" min="0" value={z.freeOver ?? 0} onChange={(e) => updateZone(i, { freeOver: Number(e.target.value) || 0 })} style={inputBase} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>تكلفة كل كغ إضافي (درهم)</label>
+              <input type="number" min="0" step="0.5" value={z.perKg ?? 0} onChange={(e) => updateZone(i, { perKg: Number(e.target.value) || 0 })} style={inputBase} />
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700, marginBottom: 6 }}>الإمارات المشمولة</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {EMIRATE_OPTS.map((em) => {
+                const active = (z.emirates || []).includes(em.value);
+                return (
+                  <button key={em.value} type="button" onClick={() => toggleEmirate(i, em.value)}
+                    style={{ background: active ? "#6366F1" : "#fff", color: active ? "#fff" : "#334155", border: `1.5px solid ${active ? "#6366F1" : "#E2E8F0"}`, borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+                    {em.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ))}
+
+      <button onClick={addZone} style={{ background: "#EEF2FF", color: "#6366F1", border: "1.5px dashed #A5B4FC", borderRadius: 12, padding: "10px 18px", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+        ➕ إضافة منطقة شحن
+      </button>
+    </div>
+  );
+}
+
+/* ════════════════════ النسخ الاحتياطي ════════════════════ */
+function BackupCard() {
+  const [stats, setStats] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [lastBackup, setLastBackup] = useState(() => localStorage.getItem("lastBackupAt") || "");
+
+  useEffect(() => {
+    apiFetch("/api/backup/stats").then(setStats).catch(() => {});
+  }, []);
+
+  const runBackup = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { API_URL, getToken } = await import("../api");
+      const res = await fetch(`${API_URL}/api/backup`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) throw new Error(`فشل: ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `kashkha-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      const now = new Date().toISOString();
+      localStorage.setItem("lastBackupAt", now);
+      setLastBackup(now);
+      alert("✅ تم تحميل النسخة الاحتياطية بنجاح");
+    } catch (e) {
+      alert("❌ فشل: " + (e.message || ""));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const fmtDate = (iso) => {
+    if (!iso) return "—";
+    try { return new Date(iso).toLocaleString("ar-AE", { dateStyle: "medium", timeStyle: "short" }); } catch { return iso; }
+  };
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 20, border: "1.5px solid #BFDBFE", padding: "24px" }}>
+      <h3 style={{ fontWeight: 800, fontSize: 17, color: "#0F172A", marginBottom: 6 }}>💾 النسخ الاحتياطي (يدوي)</h3>
+      <p style={{ fontSize: 13, color: "#64748B", marginBottom: 16 }}>
+        حمّل ملف JSON يحوي كل بيانات المتجر (المنتجات، الطلبات، العملاء، الأقسام، الكوبونات، الإعدادات). اضغط الزر كلما بدك نسخة جديدة.
+      </p>
+
+      {stats && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 10, marginBottom: 18 }}>
+          {[
+            { k: "products", label: "منتجات", icon: "🏷️" },
+            { k: "categories", label: "أقسام", icon: "📂" },
+            { k: "orders", label: "طلبات", icon: "📦" },
+            { k: "users", label: "عملاء", icon: "👥" },
+            { k: "coupons", label: "كوبونات", icon: "🎟️" },
+            { k: "ratings", label: "تقييمات", icon: "⭐" },
+            { k: "abandoned_carts", label: "سلات مهجورة", icon: "🛒" },
+          ].map((x) => (
+            <div key={x.k} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: "12px 14px", textAlign: "center" }}>
+              <div style={{ fontSize: 22 }}>{x.icon}</div>
+              <div style={{ fontWeight: 900, fontSize: 18, color: "#0F172A", marginTop: 4 }}>{stats[x.k] ?? 0}</div>
+              <div style={{ fontSize: 11, color: "#94A3B8" }}>{x.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <button onClick={runBackup} disabled={busy}
+          style={{ background: "linear-gradient(135deg,#0EA5E9,#0284C7)", color: "#fff", border: "none", borderRadius: 12, padding: "13px 26px", fontWeight: 900, fontSize: 15, cursor: busy ? "wait" : "pointer", boxShadow: "0 6px 16px rgba(14,165,233,.3)", fontFamily: "'Tajawal',sans-serif" }}>
+          {busy ? "⏳ جاري التحميل..." : "⬇️ تحميل نسخة احتياطية الآن"}
+        </button>
+        <div style={{ fontSize: 12, color: "#64748B" }}>
+          آخر نسخة من هذا المتصفح: <b style={{ color: "#0284C7" }}>{fmtDate(lastBackup)}</b>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 16, padding: "12px 14px", background: "#FFFBEB", borderRadius: 10, border: "1.5px solid #FDE68A", fontSize: 12, color: "#92400E", lineHeight: 1.7 }}>
+        💡 <b>نصيحة:</b> احفظ الملف على جوجل درايف أو خارجياً. كلمات سر المستخدمين محذوفة من الملف للأمان.
       </div>
     </div>
   );

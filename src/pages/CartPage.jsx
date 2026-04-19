@@ -12,6 +12,8 @@ import { useProducts } from "../hooks/useProducts";
 import { useSettings } from "../hooks/useSettings";
 import { useCoupons, incrementCouponUses } from "../hooks/useCoupons";
 import InvoiceModal from "../components/InvoiceModal";
+import { trackEvent } from "../components/AnalyticsPixels";
+import { parseZones, computeShipping, cartWeight } from "../utils/shipping";
 
 /* ─────────── ثوابت ─────────── */
 const EMIRATES = [
@@ -117,6 +119,26 @@ export default function CartPage() {
   };
 
   const subtotal     = useMemo(() => (items || []).reduce((s, it) => s + (Number(it.price) || 0) * (Number(it.qty) || 1), 0), [items]);
+
+  // Enriched cart items with product weights (for weight-based shipping)
+  const enrichedItems = useMemo(() => (items || []).map((it) => {
+    const p = allProducts.find((x) => String(x.id) === String(it.id));
+    return { ...it, weight: p?.weight ?? it.weight ?? 0 };
+  }), [items, allProducts]);
+
+  // Zone-based shipping (falls back to flat shipping fee)
+  const zones = useMemo(() => parseZones(storeSettings.shippingZones), [storeSettings.shippingZones]);
+  const totalWeight = useMemo(() => cartWeight(enrichedItems), [enrichedItems]);
+  const shipCalc = useMemo(() => computeShipping({
+    zones,
+    emirate: form.city,
+    subtotal,
+    weightKg: totalWeight,
+    fallbackFee: SHIPPING_FEE,
+    fallbackFreeOver: FREE_SHIP_THRESHOLD,
+  }), [zones, form.city, subtotal, totalWeight, SHIPPING_FEE, FREE_SHIP_THRESHOLD]);
+  const dynamicShippingFee = shipCalc.fee;
+
   const afterDisc    = Math.max(0, subtotal - couponDiscount - pointsDiscount);
   // حساب الضريبة
   const vatAmount    = VAT_ENABLED
@@ -125,9 +147,10 @@ export default function CartPage() {
         : +(afterDisc * VAT_PERCENT / 100).toFixed(2))
     : 0;
   const grandTotal   = VAT_ENABLED && !VAT_INCLUDED ? afterDisc + vatAmount : afterDisc;
-  const toFreeShip   = Math.max(0, FREE_SHIP_THRESHOLD - subtotal);
-  const freeShipPct  = Math.min(100, Math.round((subtotal / FREE_SHIP_THRESHOLD) * 100));
-  const isFreeShip   = subtotal >= FREE_SHIP_THRESHOLD;
+  const zoneFreeOver = Number(shipCalc.zone?.freeOver) || FREE_SHIP_THRESHOLD;
+  const toFreeShip   = Math.max(0, zoneFreeOver - subtotal);
+  const freeShipPct  = Math.min(100, Math.round((subtotal / zoneFreeOver) * 100));
+  const isFreeShip   = shipCalc.freeShip || (subtotal >= zoneFreeOver);
 
   /* ── Save for Later ── */
   const saveForLater = (it) => {
@@ -249,11 +272,13 @@ export default function CartPage() {
             couponCode: appliedCoupon?.code || null,
             couponDiscount,
             pointsDiscount,
-            shippingFee: isFreeShip ? 0 : SHIPPING_FEE,
+            shippingFee: isFreeShip ? 0 : dynamicShippingFee,
+            shippingZone: shipCalc.zone?.name || null,
+            totalWeightKg: totalWeight,
             vatPercent: VAT_ENABLED ? VAT_PERCENT : 0,
             vatIncluded: VAT_INCLUDED,
             vatAmount,
-            grandTotal: (isFreeShip ? grandTotal : grandTotal + SHIPPING_FEE),
+            grandTotal: (isFreeShip ? grandTotal : grandTotal + dynamicShippingFee),
             currency: "AED",
           },
           payment: { method: form.payMethod, transferRef: form.payMethod === "bank" ? form.transferRef : "", status: form.payMethod === "cash" ? "COD_PENDING" : "BANK_PENDING" },
@@ -271,6 +296,17 @@ export default function CartPage() {
       }
 
       clearCart();
+
+      // Analytics: Purchase event
+      try {
+        trackEvent("Purchase", {
+          value: isFreeShip ? grandTotal : grandTotal + dynamicShippingFee,
+          currency: "AED",
+          content_ids: (items || []).map((it) => String(it.id)),
+          content_type: "product",
+          num_items: items.length,
+        });
+      } catch {}
 
       const adminPhone = (storeSettings.whatsapp || "971585446473").replace(/\D/g, "");
       const itemsList  = (items || []).map(it => {
@@ -344,6 +380,24 @@ export default function CartPage() {
       <MiniNav title={`${t("cart_title")} (${(items || []).length})`} backTo="/home" showCart={false} />
 
       <main style={{ maxWidth: 1100, margin: "28px auto", padding: "0 20px", animation: "fadeUp .4s ease both" }}>
+
+        {/* شريط ضيف */}
+        {!user && items?.length > 0 && (
+          <div style={{ background: "linear-gradient(135deg,#FFFBEB,#FEF3C7)", border: "1.5px solid #FDE68A", borderRadius: 14, padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 22 }}>👤</span>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: "#92400E" }}>
+                {isAr ? "أنت تتسوق كزائر" : "You're shopping as a guest"}
+              </div>
+              <div style={{ fontSize: 12, color: "#B45309" }}>
+                {isAr ? "يمكنك إتمام الطلب الآن، أو تسجيل الدخول لربح نقاط ولاء" : "You can checkout now, or sign in to earn loyalty points"}
+              </div>
+            </div>
+            <Link to="/user-login" style={{ background: "#F59E0B", color: "#fff", borderRadius: 10, padding: "7px 14px", fontWeight: 800, fontSize: 13, textDecoration: "none", whiteSpace: "nowrap" }}>
+              {isAr ? "دخول" : "Sign in"}
+            </Link>
+          </div>
+        )}
 
         {/* حالة المزامنة */}
 
@@ -541,7 +595,7 @@ export default function CartPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, color: "#64748B", fontSize: 14 }}>
                   <span>{t("cart_delivery")}</span>
                   <span style={{ color: "#10B981", fontWeight: 700 }}>
-                    {isFreeShip ? `${isAr ? "مجاني 🎉" : "Free 🎉"}` : fmt(SHIPPING_FEE)}
+                    {isFreeShip ? `${isAr ? "مجاني 🎉" : "Free 🎉"}` : fmt(dynamicShippingFee)}
                   </span>
                 </div>
                 {VAT_ENABLED && vatAmount > 0 && (
@@ -556,8 +610,14 @@ export default function CartPage() {
                 <div style={{ height: 1, background: "#F1F5F9", margin: "12px 0" }} />
                 <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 900, fontSize: 20, color: "#6366F1" }}>
                   <span>{t("cart_total")}</span>
-                  <span>{fmt(isFreeShip ? grandTotal : grandTotal + SHIPPING_FEE)}</span>
+                  <span>{fmt(isFreeShip ? grandTotal : grandTotal + dynamicShippingFee)}</span>
                 </div>
+                {shipCalc.zone && (
+                  <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4, textAlign: "center" }}>
+                    {isAr ? `شحن ${shipCalc.zone.name}` : `${shipCalc.zone.name} shipping`}
+                    {totalWeight > 0 ? ` · ${totalWeight.toFixed(1)} كغ` : ""}
+                  </div>
+                )}
                 {(couponDiscount + pointsDiscount) > 0 && (
                   <div style={{ marginTop: 8, background: "#ECFDF5", borderRadius: 10, padding: "8px 12px", fontSize: 13, color: "#059669", fontWeight: 700, textAlign: "center" }}>
                     🎉 {isAr ? `وفّرت ${fmt(couponDiscount + pointsDiscount)}!` : `You saved ${fmt(couponDiscount + pointsDiscount)}!`}
@@ -745,7 +805,7 @@ export default function CartPage() {
               {/* زر التأكيد */}
               <button onClick={submit} disabled={loading}
                 style={{ width: "100%", padding: "16px", background: loading ? "#94A3B8" : "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", border: "none", borderRadius: 14, fontWeight: 900, fontSize: 16, cursor: loading ? "not-allowed" : "pointer", boxShadow: loading ? "none" : "0 8px 24px rgba(99,102,241,.4)", fontFamily: "'Tajawal',sans-serif", transition: "all .2s" }}>
-                {loading ? `⏳ ${isAr ? "جاري الإرسال..." : "Sending..."}` : `✅ ${t("cart_confirm")} — ${fmt(isFreeShip ? grandTotal : grandTotal + SHIPPING_FEE)}`}
+                {loading ? `⏳ ${isAr ? "جاري الإرسال..." : "Sending..."}` : `✅ ${t("cart_confirm")} — ${fmt(isFreeShip ? grandTotal : grandTotal + dynamicShippingFee)}`}
               </button>
 
             </div>

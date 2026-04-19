@@ -31,6 +31,15 @@ export async function deleteRating(productId) {
   return apiFetch(`/api/ratings/${productId}`, { method: "DELETE" });
 }
 
+// Aggregate avg+count per product (public) — used for filters/sorting
+export function useRatingsSummary() {
+  const [summary, setSummary] = useState({});
+  useEffect(() => {
+    apiFetch("/api/ratings/summary").then((d) => setSummary(d || {})).catch(() => setSummary({}));
+  }, []);
+  return summary;
+}
+
 /* ── Admin ── */
 export async function fetchPendingRatings() {
   return apiFetch("/api/ratings/admin/pending");

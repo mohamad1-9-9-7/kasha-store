@@ -22,6 +22,12 @@ const DEFAULTS = {
   vatEnabled: true,
   vatPercent: 5,
   vatIncluded: true,
+  // Analytics pixels (paste IDs only)
+  fbPixelId: "",         // e.g. 1234567890123456
+  gaMeasurementId: "",   // e.g. G-XXXXXXX
+  tiktokPixelId: "",     // e.g. ABCDEFGHIJ1234567890
+  // Shipping zones: JSON string of [{ zone, emirates: [...], fee, freeOver, perKg }]
+  shippingZones: "",
 };
 
 // key → type
@@ -33,6 +39,8 @@ const FIELD_TYPES = {
   pointsPerAED: "number", pointsRedeemRate: "number", pointsRedeemValue: "number",
   freeShipThreshold: "number", minOrderAmount: "number", shippingFee: "number",
   vatEnabled: "bool", vatPercent: "number", vatIncluded: "bool",
+  fbPixelId: "string", gaMeasurementId: "string", tiktokPixelId: "string",
+  shippingZones: "string",
 };
 
 function coerce(val, type) {

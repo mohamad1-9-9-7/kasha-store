@@ -2,6 +2,28 @@ const router = require("express").Router();
 const { pool } = require("../db");
 const { requireAuth, requireAdmin } = require("../middleware/auth");
 
+// GET /ratings/summary — aggregate avg/count of approved ratings per product (public)
+router.get("/summary", async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT product_id,
+              AVG(((data->>'stars')::int))::float AS avg,
+              COUNT(*)::int AS count
+       FROM ratings
+       WHERE (data->>'approved')::bool = true
+       GROUP BY product_id`
+    );
+    const out = {};
+    rows.forEach((r) => {
+      out[r.product_id] = { avg: Number(r.avg) || 0, count: r.count };
+    });
+    res.json(out);
+  } catch (e) {
+    console.error("GET /ratings/summary:", e);
+    res.status(500).json({ error: "خطأ في الخادم" });
+  }
+});
+
 // GET approved ratings for a product (public)
 router.get("/:productId", async (req, res) => {
   try {
