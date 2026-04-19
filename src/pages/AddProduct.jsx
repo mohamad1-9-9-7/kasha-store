@@ -44,7 +44,7 @@ export default function AddProduct() {
   const toast    = useToast();
   const { categories: rawCats } = useCategories();
   const categories = rawCats.map(c => typeof c === "string" ? c : c?.name).filter(Boolean);
-  const [form, setForm] = useState({ name: "", nameEn: "", price: "", oldPrice: "", category: "", stock: "", description: "", descriptionEn: "", badges: "", featured: false });
+  const [form, setForm] = useState({ name: "", nameEn: "", price: "", oldPrice: "", category: "", brand: "", stock: "", description: "", descriptionEn: "", badges: "", featured: false });
 
   // صور متعددة: [{ url, uploading, progress }]
   const [images, setImages]     = useState([]);
@@ -158,6 +158,7 @@ export default function AddProduct() {
       oldPrice: form.oldPrice ? parseFloat(form.oldPrice) : undefined,
       currency: "AED",
       category: form.category,
+      brand: form.brand.trim(),
       stock: form.stock ? parseInt(form.stock) : 0,
       description: form.description.trim(),
       descriptionEn: form.descriptionEn.trim(),
@@ -240,6 +241,11 @@ export default function AddProduct() {
                   <label style={lbl}>المخزون</label>
                   <input type="number" min="0" placeholder="0" value={form.stock} onChange={set("stock")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
                 </div>
+              </div>
+
+              <div>
+                <label style={lbl}>اسم الماركة</label>
+                <input placeholder="مثال: Nike, Samsung, Chanel..." value={form.brand} onChange={set("brand")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
               </div>
 
               <div>
@@ -455,6 +461,9 @@ export default function AddProduct() {
               )}
               {form.category && (
                 <div style={{ marginTop: 12, padding: "8px 12px", background: "#EEF2FF", borderRadius: 10, fontSize: 13, color: "#6366F1", fontWeight: 700 }}>📂 {form.category}</div>
+              )}
+              {form.brand && (
+                <div style={{ marginTop: 8, padding: "8px 12px", background: "#F0FDF4", borderRadius: 10, fontSize: 13, color: "#16A34A", fontWeight: 700 }}>🏷️ {form.brand}</div>
               )}
               {form.featured && <div style={{ marginTop: 8, padding: "8px 12px", background: "#FEFCE8", borderRadius: 10, fontSize: 13, color: "#CA8A04", fontWeight: 700 }}>⭐ منتج مميز</div>}
             </div>

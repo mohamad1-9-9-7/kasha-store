@@ -132,6 +132,7 @@ export default function AdminDashboard() {
       stock:       prodForm.stock !== "" ? parseInt(prodForm.stock) : current.stock,
       description: prodForm.description,
       category:    prodForm.category,
+      brand:       (prodForm.brand || "").trim(),
       badges:      String(prodForm.badges || "").split(",").map(b => b.trim()).filter(Boolean),
       image:       prodForm.image || current.image,
     };
@@ -697,6 +698,10 @@ export default function AdminDashboard() {
                   <label style={lbl}>المخزون</label>
                   <input type="number" min="0" value={prodForm.stock ?? ""} onChange={e => setProdForm(f => ({ ...f, stock: e.target.value }))} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
                 </div>
+              </div>
+              <div>
+                <label style={lbl}>اسم الماركة</label>
+                <input placeholder="مثال: Nike, Samsung..." value={prodForm.brand || ""} onChange={e => setProdForm(f => ({ ...f, brand: e.target.value }))} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
               </div>
               <div>
                 <label style={lbl}>الوصف</label>
