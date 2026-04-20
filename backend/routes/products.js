@@ -66,13 +66,34 @@ async function autoTranslateBatch(records, concurrency = 4) {
   return translated;
 }
 
+// Ensure a category with the given name exists; create it if missing.
+// Returns the name (unchanged) for convenience.
+async function ensureCategory(client, name) {
+  if (!name) return name;
+  const { rows } = await client.query(
+    "SELECT id FROM categories WHERE data->>'name' = $1 LIMIT 1",
+    [name]
+  );
+  if (rows.length) return name;
+  const id = uuidv4();
+  const cat = { id, name, hidden: false, createdAt: new Date().toISOString() };
+  await client.query("INSERT INTO categories (id, data) VALUES ($1, $2)", [id, cat]);
+  return name;
+}
+
 // POST bulk import products (admin) — body: { products: [...] }
-// Query ?translate=1 enables EN → AR auto-translation for empty Arabic fields.
+// Query params:
+//   ?translate=1        → EN → AR auto-translation for empty Arabic fields
+//   ?targetCategory=X   → override every row's category with X (auto-creates the category if missing)
+//   ?markFeatured=1     → set featured=true on every imported row (shown on homepage)
 router.post("/bulk", requireAdmin, async (req, res) => {
   const client = await pool.connect();
   try {
     const list = Array.isArray(req.body?.products) ? req.body.products : [];
     if (!list.length) return res.status(400).json({ error: "لا توجد منتجات للاستيراد" });
+
+    const targetCategory = String(req.query.targetCategory || "").trim();
+    const markFeatured = req.query.markFeatured === "1" || req.query.markFeatured === "true";
 
     // Build records first (no DB work yet, so translation can run freely)
     const records = [];
@@ -89,6 +110,7 @@ router.post("/bulk", requireAdmin, async (req, res) => {
       }
 
       const sku = p.sku ? String(p.sku).trim() : ("KSH-" + uuidv4().slice(0, 8).toUpperCase());
+      const rawCategory = p.category ? String(p.category).trim() : "";
       const record = {
         id: String(p.id || sku),
         sku,
@@ -98,7 +120,9 @@ router.post("/bulk", requireAdmin, async (req, res) => {
         oldPrice: p.oldPrice !== undefined && p.oldPrice !== "" ? Number(p.oldPrice) : undefined,
         costPrice: p.costPrice !== undefined && p.costPrice !== "" ? Number(p.costPrice) : undefined,
         currency: p.currency || "AED",
-        category: p.category ? String(p.category).trim() : "",
+        category: targetCategory || rawCategory,
+        supplierCategory: rawCategory && targetCategory && rawCategory !== targetCategory ? rawCategory : undefined,
+        featured: markFeatured || !!p.featured,
         brand: p.brand ? String(p.brand).trim() : "",
         stock: p.stock !== undefined && p.stock !== "" ? parseInt(p.stock) : 0,
         weight: p.weight !== undefined && p.weight !== "" ? Number(p.weight) : undefined,
@@ -131,6 +155,8 @@ router.post("/bulk", requireAdmin, async (req, res) => {
 
     await client.query("BEGIN");
     let inserted = 0, updated = 0;
+
+    if (targetCategory) await ensureCategory(client, targetCategory);
 
     for (const record of records) {
       // Match existing products by SKU first, then fall back to id

@@ -6,6 +6,7 @@ import { csvToObjects, objectsToCSV } from "../utils/csvParser";
 import { matrixToObjects, normalizeObjects } from "../utils/productImportMap";
 import { apiFetch } from "../api";
 import { useToast } from "../context/ToastContext";
+import { useCategories } from "../hooks/useCategories";
 
 const CARD = { background: "#fff", borderRadius: 20, border: "1px solid #F1F5F9", boxShadow: shadow.md, padding: "24px" };
 
@@ -40,15 +41,22 @@ const SAMPLE = [
 export default function BulkImport() {
   const navigate = useNavigate();
   const toast = useToast();
+  const { categories } = useCategories();
   const [rows, setRows] = useState([]);
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [translate, setTranslate] = useState(true);
+  const [targetCategory, setTargetCategory] = useState("");
+  const [markFeatured, setMarkFeatured] = useState(true);
 
   React.useEffect(() => {
     if (localStorage.getItem("isAdmin") !== "true") navigate("/admin-login");
   }, []);
+
+  const existingCatNames = categories
+    .map((c) => typeof c === "string" ? c : c?.name)
+    .filter(Boolean);
 
   const handleFile = async (e) => {
     const f = e.target.files?.[0];
@@ -91,9 +99,16 @@ export default function BulkImport() {
 
   const submit = async () => {
     if (!rows.length) return toast("لا توجد منتجات للرفع", "error");
+    const cat = targetCategory.trim();
+    if (!cat) return toast("اختر أو اكتب اسم القسم أولاً", "error");
     setLoading(true);
     try {
-      const res = await apiFetch(`/api/products/bulk?translate=${translate ? 1 : 0}`, {
+      const params = new URLSearchParams({
+        translate: translate ? "1" : "0",
+        targetCategory: cat,
+        markFeatured: markFeatured ? "1" : "0",
+      });
+      const res = await apiFetch(`/api/products/bulk?${params}`, {
         method: "POST",
         body: { products: rows },
       });
@@ -139,10 +154,46 @@ export default function BulkImport() {
             {file && <span style={{ fontSize: 13, color: "#64748B" }}>{file.name} — {rows.length} صف</span>}
           </div>
 
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "#F0FDF4", border: "1.5px solid #BBF7D0", borderRadius: 12, cursor: "pointer", marginBottom: 16 }}>
-            <input type="checkbox" checked={translate} onChange={(e) => setTranslate(e.target.checked)} style={{ accentColor: "#16A34A" }} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#15803D" }}>🌐 ترجم الأسماء والأوصاف للعربية تلقائياً</span>
-          </label>
+          <div style={{ background: "#FFFBEB", border: "1.5px solid #FCD34D", borderRadius: 14, padding: "14px 16px", marginBottom: 14 }}>
+            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: "#92400E", marginBottom: 6 }}>
+              📂 القسم اللي رح تتخزن فيه كل المنتجات <span style={{ color: "#DC2626" }}>*</span>
+            </label>
+            <input
+              type="text"
+              value={targetCategory}
+              onChange={(e) => setTargetCategory(e.target.value)}
+              placeholder="مثال: ألعاب أطفال"
+              style={{ ...inputBase, background: "#fff" }}
+              list="existing-cats"
+            />
+            <datalist id="existing-cats">
+              {existingCatNames.map((n) => <option key={n} value={n} />)}
+            </datalist>
+            {existingCatNames.length > 0 && (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                {existingCatNames.map((n) => (
+                  <button key={n} type="button" onClick={() => setTargetCategory(n)}
+                    style={{ background: targetCategory === n ? "#F59E0B" : "#fff", color: targetCategory === n ? "#fff" : "#92400E", border: "1.5px solid #FCD34D", borderRadius: 999, padding: "4px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: "#92400E", marginTop: 6, opacity: 0.8 }}>
+              لو كتبت اسم قسم جديد، رح ينعمل تلقائياً. كل المنتجات بهاد الاستيراد رح تتحط بهاد القسم.
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "#F0FDF4", border: "1.5px solid #BBF7D0", borderRadius: 12, cursor: "pointer" }}>
+              <input type="checkbox" checked={translate} onChange={(e) => setTranslate(e.target.checked)} style={{ accentColor: "#16A34A" }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#15803D" }}>🌐 ترجم تلقائياً للعربية</span>
+            </label>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "#FEFCE8", border: "1.5px solid #FDE68A", borderRadius: 12, cursor: "pointer" }}>
+              <input type="checkbox" checked={markFeatured} onChange={(e) => setMarkFeatured(e.target.checked)} style={{ accentColor: "#CA8A04" }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#A16207" }}>⭐ اعرضهم كمنتجات مميزة بالصفحة الرئيسية</span>
+            </label>
+          </div>
 
           {rows.length > 0 && (
             <>
