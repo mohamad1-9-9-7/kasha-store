@@ -37,7 +37,10 @@ function App() {
 
   // ✅ قراءة مباشرة من localStorage بكل رندر (بتمنع race condition بعد تسجيل الدخول)
   const user = safeGetUser();
-  const isAdmin = localStorage.getItem("isAdmin") === "true";
+  // Admin gate: flag + token must both exist. Server still re-validates via JWT.
+  const isAdmin =
+    localStorage.getItem("isAdmin") === "true" &&
+    !!localStorage.getItem("token");
 
   // ✅ عرض مؤقت أثناء جلب المستخدم
   if (user === null && localStorage.getItem("user")) {

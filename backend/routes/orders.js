@@ -62,18 +62,22 @@ router.post("/", async (req, res) => {
       if (!customer.name || !customer.phone || !customer.city || !customer.address) {
         return res.status(400).json({ error: "البيانات ناقصة للطلب كزائر" });
       }
-      if (!/^05\d{8}$/.test(String(customer.phone).replace(/\D/g, "").replace(/^971/, "0"))) {
-        // accept local 05... or international 971... — loose check
-        const digits = String(customer.phone).replace(/\D/g, "");
-        if (digits.length < 9) return res.status(400).json({ error: "رقم الهاتف غير صالح" });
+      // Normalize phone: digits only; strip leading country code 971 → local (0…)
+      const digits = String(customer.phone).replace(/\D/g, "").replace(/^971/, "0");
+      if (!/^05\d{8}$/.test(digits)) {
+        return res.status(400).json({ error: "رقم الهاتف غير صالح" });
       }
+      customer.phone = digits;
     }
 
     const orderItems = Array.isArray(req.body.items) ? req.body.items : [];
+    if (!orderItems.length) return res.status(400).json({ error: "السلة فارغة" });
 
     await client.query("BEGIN");
 
-    // Stock check + decrement (skip products without stock tracking)
+    // Stock check + decrement, and rebuild authoritative item list from DB prices
+    const verifiedItems = [];
+    let computedSubtotal = 0;
     for (const it of orderItems) {
       const pid = String(it.id || "");
       const qty = Number(it.qty) || 1;
@@ -82,7 +86,10 @@ router.post("/", async (req, res) => {
         "SELECT data FROM products WHERE id = $1 FOR UPDATE",
         [pid]
       );
-      if (!rows.length) continue;
+      if (!rows.length) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ error: `منتج غير موجود: ${it.name || pid}` });
+      }
       const prod = rows[0].data;
       if (Number.isFinite(prod.stock)) {
         if (prod.stock < qty) {
@@ -94,11 +101,33 @@ router.post("/", async (req, res) => {
         const updated = { ...prod, stock: prod.stock - qty };
         await client.query("UPDATE products SET data = $1 WHERE id = $2", [updated, pid]);
       }
+      const price = Number(prod.price) || 0;
+      computedSubtotal += price * qty;
+      verifiedItems.push({
+        id: pid,
+        name: prod.name,
+        price,
+        qty,
+        image: it.image || prod.image || "",
+        category: it.category || prod.category || "",
+        variantSummary: Array.isArray(it.variantSummary) ? it.variantSummary : [],
+      });
     }
+
+    // Server is the source of truth for money. We accept client-supplied totals
+    // only for informational fields; we stamp a computed subtotal + grandTotal hint.
+    const clientTotals = req.body.totals || {};
+    const serverTotals = {
+      ...clientTotals,
+      subtotal: computedSubtotal,
+      currency: "AED",
+    };
 
     const order = {
       ...req.body,
       customer,
+      items: verifiedItems,
+      totals: serverTotals,
       id,
       status: "NEW",
       isGuest: !user,

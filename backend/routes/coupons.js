@@ -21,7 +21,8 @@ router.post("/validate", async (req, res) => {
     const { rows } = await pool.query("SELECT data FROM coupons WHERE id = $1", [code]);
     if (!rows.length) return res.status(404).json({ error: "الكوبون غير موجود" });
     const c = rows[0].data;
-    if (c.expiresAt && Date.now() > new Date(c.expiresAt).getTime()) {
+    if (c.active === false) return res.status(410).json({ error: "الكوبون غير نشط" });
+    if (c.expiry && Date.now() > new Date(c.expiry).getTime()) {
       return res.status(410).json({ error: "انتهت صلاحية الكوبون" });
     }
     if (c.maxUses && (c.uses || 0) >= c.maxUses) {
@@ -31,7 +32,7 @@ router.post("/validate", async (req, res) => {
       code: c.code,
       type: c.type,
       value: c.value,
-      minTotal: c.minTotal || 0,
+      minOrder: c.minOrder || 0,
     });
   } catch (e) {
     console.error("POST /coupons/validate:", e);
@@ -81,18 +82,44 @@ router.delete("/:id", requireAdmin, async (req, res) => {
   }
 });
 
-// POST increment coupon uses (public — called on order creation)
+// POST increment coupon uses (public — called on order creation).
+// Atomic: SELECT ... FOR UPDATE + validate + UPDATE in one transaction.
 router.post("/:code/use", async (req, res) => {
+  const client = await pool.connect();
   try {
     const code = req.params.code.toUpperCase();
-    const { rows } = await pool.query("SELECT data FROM coupons WHERE id = $1", [code]);
-    if (!rows.length) return res.status(404).json({ error: "الكوبون غير موجود" });
-    const updated = { ...rows[0].data, uses: (rows[0].data.uses || 0) + 1 };
-    await pool.query("UPDATE coupons SET data = $1 WHERE id = $2", [updated, code]);
+    await client.query("BEGIN");
+    const { rows } = await client.query(
+      "SELECT data FROM coupons WHERE id = $1 FOR UPDATE",
+      [code]
+    );
+    if (!rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "الكوبون غير موجود" });
+    }
+    const c = rows[0].data;
+    if (c.active === false) {
+      await client.query("ROLLBACK");
+      return res.status(410).json({ error: "الكوبون غير نشط" });
+    }
+    if (c.expiry && Date.now() > new Date(c.expiry).getTime()) {
+      await client.query("ROLLBACK");
+      return res.status(410).json({ error: "انتهت صلاحية الكوبون" });
+    }
+    if (c.maxUses && (c.uses || 0) >= c.maxUses) {
+      await client.query("ROLLBACK");
+      return res.status(410).json({ error: "تم استنفاد الكوبون" });
+    }
+    const updated = { ...c, uses: (c.uses || 0) + 1 };
+    await client.query("UPDATE coupons SET data = $1 WHERE id = $2", [updated, code]);
+    await client.query("COMMIT");
     res.json(updated);
   } catch (e) {
+    try { await client.query("ROLLBACK"); } catch {}
     console.error("POST /coupons/:code/use:", e);
     res.status(500).json({ error: "خطأ في الخادم" });
+  } finally {
+    client.release();
   }
 });
 

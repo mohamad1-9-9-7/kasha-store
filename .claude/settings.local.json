@@ -28,7 +28,19 @@
       "Bash(node -c backend/routes/ratings.js)",
       "Bash(node -c backend/db.js)",
       "Bash(node -c backend/server.js)",
-      "Bash(ls C:\\\\\\\\Users\\\\\\\\moham\\\\\\\\OneDrive\\\\\\\\Desktop\\\\\\\\kashkha-store)"
+      "Bash(ls C:\\\\\\\\Users\\\\\\\\moham\\\\\\\\OneDrive\\\\\\\\Desktop\\\\\\\\kashkha-store)",
+      "Bash(node --check backend/routes/coupons.js)",
+      "Bash(node --check backend/routes/orders.js)",
+      "Bash(node --check backend/routes/products.js)",
+      "Bash(python -c ' *)",
+      "Bash(where python *)",
+      "Bash('C:\\\\Users\\\\moham\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe' -c ' *)",
+      "Bash(\"C:\\\\Users\\\\moham\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\" -m pip install pandas openpyxl --quiet)",
+      "Bash(node -e ' *)",
+      "Bash(node _test_import.cjs)",
+      "Bash(node _test_translate.cjs)",
+      "Bash(node --check routes/products.js)",
+      "Bash(node --check lib/translate.js)"
     ]
   }
 }

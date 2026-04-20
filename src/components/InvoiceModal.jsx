@@ -52,21 +52,22 @@ export default function InvoiceModal({ order, store, onClose }) {
   };
 
   const printInvoice = () => {
+    if (!invoiceRef.current) return;
     const w = window.open("", "_blank");
     if (!w) return;
-    w.document.write(`
-      <html dir="rtl" lang="ar">
-        <head>
-          <title>فاتورة ${order.id}</title>
-          <style>
-            body { font-family: 'Tajawal', Arial, sans-serif; margin: 0; padding: 20px; }
-            @media print { body { padding: 0; } }
-          </style>
-        </head>
-        <body>${invoiceRef.current.outerHTML}</body>
-      </html>
-    `);
-    w.document.close();
+    // Build a minimal document, then import the node (safer than outerHTML concat).
+    const doc = w.document;
+    doc.open();
+    doc.write("<!doctype html><html dir='rtl' lang='ar'><head></head><body></body></html>");
+    doc.close();
+    const title = doc.createElement("title");
+    title.textContent = `فاتورة ${order.id}`;
+    doc.head.appendChild(title);
+    const style = doc.createElement("style");
+    style.textContent = `body{font-family:'Tajawal',Arial,sans-serif;margin:0;padding:20px}@media print{body{padding:0}}`;
+    doc.head.appendChild(style);
+    const cloned = doc.importNode(invoiceRef.current, true);
+    doc.body.appendChild(cloned);
     w.focus();
     setTimeout(() => { w.print(); w.close(); }, 300);
   };

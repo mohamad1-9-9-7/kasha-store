@@ -1,43 +1,102 @@
 const router = require("express").Router();
 const { pool } = require("../db");
 const { requireAdmin } = require("../middleware/auth");
+const { v4: uuidv4 } = require("uuid");
+const jwt = require("jsonwebtoken");
+const { translate } = require("../lib/translate");
 
-// GET all products (public)
+const JWT_SECRET = process.env.JWT_SECRET;
+
+function isAdminRequest(req) {
+  const header = req.headers.authorization;
+  if (!header?.startsWith("Bearer ")) return false;
+  try {
+    const payload = jwt.verify(header.slice(7), JWT_SECRET);
+    return payload?.role === "admin";
+  } catch {
+    return false;
+  }
+}
+
+// costPrice is internal — never expose to the storefront
+function stripPrivate(data) {
+  if (!data) return data;
+  const { costPrice, ...rest } = data;
+  return rest;
+}
+
+// GET all products (public — non-admins never see costPrice)
 router.get("/", async (req, res) => {
   try {
     const { rows } = await pool.query("SELECT data FROM products ORDER BY created_at");
-    res.json(rows.map((r) => r.data));
+    const admin = isAdminRequest(req);
+    res.json(rows.map((r) => admin ? r.data : stripPrivate(r.data)));
   } catch (e) {
     console.error("GET /products:", e);
     res.status(500).json({ error: "خطأ في الخادم" });
   }
 });
 
+// Translate a batch of product records in parallel with bounded concurrency.
+// Only fills the Arabic field when it's empty and the English field has content.
+async function autoTranslateBatch(records, concurrency = 4) {
+  const needs = [];
+  records.forEach((rec, idx) => {
+    if (!rec.name && rec.nameEn) needs.push({ idx, field: "name", src: rec.nameEn });
+    if (!rec.description && rec.descriptionEn) needs.push({ idx, field: "description", src: rec.descriptionEn });
+  });
+
+  let translated = 0;
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(concurrency, needs.length) }, async () => {
+    while (cursor < needs.length) {
+      const job = needs[cursor++];
+      try {
+        const out = await translate(job.src);
+        if (out && out !== job.src) {
+          records[job.idx][job.field] = out;
+          translated++;
+        }
+      } catch (e) {
+        console.warn(`translate failed for record ${job.idx}.${job.field}:`, e.message);
+      }
+    }
+  });
+  await Promise.all(workers);
+  return translated;
+}
+
 // POST bulk import products (admin) — body: { products: [...] }
+// Query ?translate=1 enables EN → AR auto-translation for empty Arabic fields.
 router.post("/bulk", requireAdmin, async (req, res) => {
   const client = await pool.connect();
   try {
     const list = Array.isArray(req.body?.products) ? req.body.products : [];
     if (!list.length) return res.status(400).json({ error: "لا توجد منتجات للاستيراد" });
 
-    await client.query("BEGIN");
-    let inserted = 0, updated = 0, skipped = 0;
+    // Build records first (no DB work yet, so translation can run freely)
+    const records = [];
     const errors = [];
+    let skipped = 0;
 
     for (let i = 0; i < list.length; i++) {
       const p = list[i] || {};
-      if (!p.name) { skipped++; errors.push({ row: i + 1, error: "اسم المنتج مفقود" }); continue; }
+      const fallbackName = p.name || p.nameEn;
+      if (!fallbackName) { skipped++; errors.push({ row: i + 1, error: "اسم المنتج مفقود" }); continue; }
       const price = Number(p.price);
       if (!Number.isFinite(price) || price < 0) {
         skipped++; errors.push({ row: i + 1, error: `السعر غير صالح (${p.price})` }); continue;
       }
-      const id = String(p.id || `BULK-${Date.now()}-${i}`);
+
+      const sku = p.sku ? String(p.sku).trim() : ("KSH-" + uuidv4().slice(0, 8).toUpperCase());
       const record = {
-        id,
-        name: String(p.name).trim(),
+        id: String(p.id || sku),
+        sku,
+        name: p.name ? String(p.name).trim() : "",
         nameEn: p.nameEn ? String(p.nameEn).trim() : "",
         price,
-        oldPrice: p.oldPrice ? Number(p.oldPrice) : undefined,
+        oldPrice: p.oldPrice !== undefined && p.oldPrice !== "" ? Number(p.oldPrice) : undefined,
+        costPrice: p.costPrice !== undefined && p.costPrice !== "" ? Number(p.costPrice) : undefined,
         currency: p.currency || "AED",
         category: p.category ? String(p.category).trim() : "",
         brand: p.brand ? String(p.brand).trim() : "",
@@ -52,24 +111,46 @@ router.post("/bulk", requireAdmin, async (req, res) => {
         images: typeof p.images === "string"
           ? p.images.split(/[,|]/).map((s) => s.trim()).filter(Boolean)
           : Array.isArray(p.images) ? p.images : (p.image ? [p.image] : []),
-        sku: p.sku || ("KSH-" + Math.random().toString(36).toUpperCase().slice(2, 9)),
         metaTitle: p.metaTitle || "",
         metaDescription: p.metaDescription || "",
         createdAt: new Date().toISOString(),
       };
+      records.push(record);
+    }
 
-      const existing = await client.query("SELECT id FROM products WHERE id = $1", [id]);
+    // Auto-translate empty Arabic fields when requested (default on)
+    const shouldTranslate = req.query.translate !== "0" && req.query.translate !== "false";
+    let translated = 0;
+    if (shouldTranslate) {
+      translated = await autoTranslateBatch(records);
+    }
+    // Ensure every record ends up with an Arabic name (fallback to English)
+    for (const r of records) {
+      if (!r.name) r.name = r.nameEn;
+    }
+
+    await client.query("BEGIN");
+    let inserted = 0, updated = 0;
+
+    for (const record of records) {
+      // Match existing products by SKU first, then fall back to id
+      const existing = await client.query(
+        "SELECT id FROM products WHERE id = $1 OR data->>'sku' = $2 LIMIT 1",
+        [record.id, record.sku]
+      );
       if (existing.rows.length) {
-        await client.query("UPDATE products SET data = $1 WHERE id = $2", [record, id]);
+        const existingId = existing.rows[0].id;
+        record.id = existingId; // keep original id on update
+        await client.query("UPDATE products SET data = $1 WHERE id = $2", [record, existingId]);
         updated++;
       } else {
-        await client.query("INSERT INTO products (id, data) VALUES ($1, $2)", [id, record]);
+        await client.query("INSERT INTO products (id, data) VALUES ($1, $2)", [record.id, record]);
         inserted++;
       }
     }
 
     await client.query("COMMIT");
-    res.json({ inserted, updated, skipped, errors });
+    res.json({ inserted, updated, skipped, translated, errors });
   } catch (e) {
     try { await client.query("ROLLBACK"); } catch {}
     console.error("POST /products/bulk:", e);

@@ -44,7 +44,7 @@ export default function AddProduct() {
   const toast    = useToast();
   const { categories: rawCats } = useCategories();
   const categories = rawCats.map(c => typeof c === "string" ? c : c?.name).filter(Boolean);
-  const [form, setForm] = useState({ name: "", nameEn: "", price: "", oldPrice: "", category: "", brand: "", stock: "", weight: "", description: "", descriptionEn: "", badges: "", metaTitle: "", metaDescription: "", featured: false });
+  const [form, setForm] = useState({ name: "", nameEn: "", price: "", oldPrice: "", costPrice: "", category: "", brand: "", stock: "", weight: "", description: "", descriptionEn: "", badges: "", metaTitle: "", metaDescription: "", featured: false });
 
   // صور متعددة: [{ url, uploading, progress }]
   const [images, setImages]     = useState([]);
@@ -156,6 +156,7 @@ export default function AddProduct() {
       nameEn: form.nameEn.trim(),
       price: parseFloat(form.price),
       oldPrice: form.oldPrice ? parseFloat(form.oldPrice) : undefined,
+      costPrice: form.costPrice ? parseFloat(form.costPrice) : undefined,
       currency: "AED",
       category: form.category,
       brand: form.brand.trim(),
@@ -219,7 +220,7 @@ export default function AddProduct() {
                 <input placeholder="e.g. Wireless Headphones" value={form.nameEn} onChange={set("nameEn")} style={{ ...inputBase, direction: "ltr" }} onFocus={focusIn} onBlur={focusOut} />
               </div>
 
-              <div className="ap-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div className="ap-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
                 <div>
                   <label style={lbl}>السعر (درهم) *</label>
                   <input type="number" min="0" step="0.01" placeholder="0.00" value={form.price} onChange={set("price")} required style={inputBase} onFocus={focusIn} onBlur={focusOut} />
@@ -230,6 +231,13 @@ export default function AddProduct() {
                     {pct && <span style={{ background: "#FEF2F2", color: "#EF4444", borderRadius: 999, padding: "2px 8px", fontSize: 11, fontWeight: 800, marginRight: 6 }}>- {pct}%</span>}
                   </label>
                   <input type="number" min="0" step="0.01" placeholder="0.00" value={form.oldPrice} onChange={set("oldPrice")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                </div>
+                <div>
+                  <label style={lbl}>
+                    سعر التكلفة
+                    <span style={{ background: "#FEF3C7", color: "#B45309", borderRadius: 999, padding: "2px 8px", fontSize: 11, fontWeight: 800, marginRight: 6 }}>🔒 للأدمن</span>
+                  </label>
+                  <input type="number" min="0" step="0.01" placeholder="0.00" value={form.costPrice} onChange={set("costPrice")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
                 </div>
               </div>
 
