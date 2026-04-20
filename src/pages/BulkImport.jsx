@@ -158,29 +158,26 @@ export default function BulkImport() {
             <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: "#92400E", marginBottom: 6 }}>
               📂 القسم اللي رح تتخزن فيه كل المنتجات <span style={{ color: "#DC2626" }}>*</span>
             </label>
-            <input
-              type="text"
-              value={targetCategory}
-              onChange={(e) => setTargetCategory(e.target.value)}
-              placeholder="مثال: ألعاب أطفال"
-              style={{ ...inputBase, background: "#fff" }}
-              list="existing-cats"
-            />
-            <datalist id="existing-cats">
-              {existingCatNames.map((n) => <option key={n} value={n} />)}
-            </datalist>
-            {existingCatNames.length > 0 && (
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+            {existingCatNames.length === 0 ? (
+              <>
+                <div style={{ fontSize: 12, color: "#B45309", marginBottom: 6 }}>
+                  ما في أقسام محفوظة. <Link to="/manage-categories" style={{ color: "#B45309", fontWeight: 800, textDecoration: "underline" }}>روح أضف قسم أولاً</Link>.
+                </div>
+              </>
+            ) : (
+              <select
+                value={targetCategory}
+                onChange={(e) => setTargetCategory(e.target.value)}
+                style={{ ...inputBase, background: "#fff", cursor: "pointer" }}
+              >
+                <option value="">-- اختر قسم --</option>
                 {existingCatNames.map((n) => (
-                  <button key={n} type="button" onClick={() => setTargetCategory(n)}
-                    style={{ background: targetCategory === n ? "#F59E0B" : "#fff", color: targetCategory === n ? "#fff" : "#92400E", border: "1.5px solid #FCD34D", borderRadius: 999, padding: "4px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
-                    {n}
-                  </button>
+                  <option key={n} value={n}>{n}</option>
                 ))}
-              </div>
+              </select>
             )}
             <div style={{ fontSize: 11, color: "#92400E", marginTop: 6, opacity: 0.8 }}>
-              لو كتبت اسم قسم جديد، رح ينعمل تلقائياً. كل المنتجات بهاد الاستيراد رح تتحط بهاد القسم.
+              كل المنتجات بهاد الاستيراد رح تتحط بهاد القسم.
             </div>
           </div>
 
