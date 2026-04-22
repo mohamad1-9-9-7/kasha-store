@@ -40,7 +40,23 @@
       "Bash(node _test_import.cjs)",
       "Bash(node _test_translate.cjs)",
       "Bash(node --check routes/products.js)",
-      "Bash(node --check lib/translate.js)"
+      "Bash(node --check lib/translate.js)",
+      "Bash(curl -sI \"https://kashkha-backend.onrender.com/\")",
+      "Bash(curl -s \"https://kashkha-backend.onrender.com/\")",
+      "Bash(curl -v \"https://kashkha-backend.onrender.com/\")",
+      "Bash(curl -s --ssl-no-revoke \"https://kashkha-backend.onrender.com/\")",
+      "Bash(curl -s --ssl-no-revoke -X POST \"https://kashkha-backend.onrender.com/api/products/bulk\" -H \"Content-Type: application/json\" -d '{\"products\":[{\"nameEn\":\"Test Product\",\"price\":100}]}')",
+      "Bash(curl -s --ssl-no-revoke \"https://api.github.com/repos/mohamad1-9-9-7/kasha-store/commits/master\")",
+      "Bash(curl -sI --ssl-no-revoke \"https://kashkha-backend.onrender.com/\")",
+      "Bash(curl -s --ssl-no-revoke -X POST \"https://kashkha-backend.onrender.com/api/auth/admin-login\" -H \"Content-Type: application/json\" -d '{\"phone\":\"0585446473\",\"password\":\"802410\"}')",
+      "Bash(curl -s --ssl-no-revoke -X POST \"https://kashkha-backend.onrender.com/api/products/bulk?translate=0\" -H \"Content-Type: application/json\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFkbWluIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzc2NzE3NDgyLCJleHAiOjE3NzczMjIyODJ9.tBsjKBZbpOWyyFPEkGLyxCCDoZ5rubEClfR5wEFURss\" -d '{\"products\":[{\"nameEn\":\"Deploy Probe Test\",\"price\":1,\"sku\":\"TEST-DEPLOY-PROBE\"}]}')",
+      "Bash(curl -s --ssl-no-revoke -X DELETE \"https://kashkha-backend.onrender.com/api/products/TEST-DEPLOY-PROBE\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFkbWluIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzc2NzE3NDgyLCJleHAiOjE3NzczMjIyODJ9.tBsjKBZbpOWyyFPEkGLyxCCDoZ5rubEClfR5wEFURss\")",
+      "Bash(curl -s --ssl-no-revoke \"https://kashkha-backend.onrender.com/api/categories\")",
+      "Bash(curl -s --ssl-no-revoke -X POST \"https://kashkha-backend.onrender.com/api/products/bulk?translate=0&targetCategory=TEST-PROBE-CAT&markFeatured=1\" -H \"Content-Type: application/json\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFkbWluIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzc2NzE4MjMzLCJleHAiOjE3NzczMjMwMzN9.wMPsTEG7JEsv1AQdccERVdKtSCoEkr22Hcm1_spaoXc\" -d '{\"products\":[{\"nameEn\":\"Deploy Probe 2\",\"price\":1,\"sku\":\"TEST-DEPLOY-PROBE-2\"}]}')",
+      "Bash(curl -s --ssl-no-revoke \"https://kashkha-backend.onrender.com/api/categories\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFkbWluIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzc2NzE4MjMzLCJleHAiOjE3NzczMjMwMzN9.wMPsTEG7JEsv1AQdccERVdKtSCoEkr22Hcm1_spaoXc\")",
+      "Bash(curl -s --ssl-no-revoke -X DELETE https://kashkha-backend.onrender.com/api/products/TEST-DEPLOY-PROBE-2 -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFkbWluIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzc2NzE4MjMzLCJleHAiOjE3NzczMjMwMzN9.wMPsTEG7JEsv1AQdccERVdKtSCoEkr22Hcm1_spaoXc')",
+      "Bash(curl -s --ssl-no-revoke -X DELETE https://kashkha-backend.onrender.com/api/categories/3a587bee-bfae-4c54-9426-2a0a34231ea9 -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFkbWluIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzc2NzE4MjMzLCJleHAiOjE3NzczMjMwMzN9.wMPsTEG7JEsv1AQdccERVdKtSCoEkr22Hcm1_spaoXc')",
+      "Bash(grep -E \"\\\\.\\(ts|tsx|js|jsx\\)$\")"
     ]
   }
 }

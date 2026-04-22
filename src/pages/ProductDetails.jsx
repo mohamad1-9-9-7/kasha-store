@@ -345,6 +345,8 @@ export default function ProductDetails() {
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <span style={{ background: "#EEF2FF", color: "#6366F1", borderRadius: 999, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>{product.category}</span>
                 {product.brand && <span style={{ background: "#F0FDF4", color: "#16A34A", borderRadius: 999, padding: "4px 14px", fontSize: 12, fontWeight: 700 }}>🏷️ {product.brand}</span>}
+                {product.returns === "Returnable" && <span style={{ background: "#ECFDF5", color: "#059669", borderRadius: 999, padding: "4px 12px", fontSize: 12, fontWeight: 700 }}>↩️ {lang === "ar" ? "قابل للإرجاع" : "Returnable"}</span>}
+                {product.returns === "Non-Returnable" && <span style={{ background: "#FEF2F2", color: "#DC2626", borderRadius: 999, padding: "4px 12px", fontSize: 12, fontWeight: 700 }}>🚫 {lang === "ar" ? "غير قابل للإرجاع" : "Non-Returnable"}</span>}
                 {product.sku && <span style={{ background: "#F1F5F9", color: "#64748B", borderRadius: 999, padding: "4px 12px", fontSize: 11, fontWeight: 600, fontFamily: "monospace", letterSpacing: .5 }}>SKU: {product.sku}</span>}
               </div>
               <h1 style={{ fontSize: 22, fontWeight: 900, color: "#0F172A", marginTop: 12, lineHeight: 1.4 }}>{product.name}</h1>
@@ -392,6 +394,42 @@ export default function ProductDetails() {
             {product.description && (
               <p style={{ color: "#64748B", lineHeight: 1.8, fontSize: 14, borderTop: "1px solid #F1F5F9", paddingTop: 14, margin: 0 }}>{product.description}</p>
             )}
+
+            {/* جدول المواصفات */}
+            {(() => {
+              const genderLabel = {
+                Unisex: lang === "ar" ? "للجنسين" : "Unisex",
+                Male:   lang === "ar" ? "ذكر"     : "Male",
+                Female: lang === "ar" ? "أنثى"    : "Female",
+              };
+              const specs = [
+                { label: lang === "ar" ? "المادة"          : "Material",            value: product.material },
+                { label: lang === "ar" ? "اللون"           : "Color",               value: product.color },
+                { label: lang === "ar" ? "الجنس المستهدف"  : "Target Gender",       value: genderLabel[product.targetGender] || product.targetGender },
+                { label: lang === "ar" ? "العمر الموصى به" : "Recommended Age",     value: product.recommendedAge },
+                { label: lang === "ar" ? "أبعاد المنتج"    : "Product Dimensions",  value: product.productDimensions },
+                { label: lang === "ar" ? "أبعاد العبوة"    : "Package Dimensions",  value: product.packageDimensions },
+                { label: lang === "ar" ? "وزن المنتج"      : "Product Weight",      value: product.weight ? `${product.weight} ${lang === "ar" ? "كغ" : "kg"}` : "" },
+                { label: lang === "ar" ? "وزن العبوة"      : "Package Weight",      value: product.packageWeight ? `${product.packageWeight} ${lang === "ar" ? "كغ" : "kg"}` : "" },
+                { label: lang === "ar" ? "الوزن الحجمي"    : "Volumetric Weight",   value: product.volumetricWeight ? `${product.volumetricWeight} ${lang === "ar" ? "كغ" : "kg"}` : "" },
+              ].filter(s => s.value);
+              if (!specs.length) return null;
+              return (
+                <div style={{ borderTop: "1px solid #F1F5F9", paddingTop: 14 }}>
+                  <div style={{ fontWeight: 800, fontSize: 14, color: "#334155", marginBottom: 10 }}>
+                    📋 {lang === "ar" ? "المواصفات" : "Specifications"}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, border: "1px solid #F1F5F9", borderRadius: 10, overflow: "hidden" }}>
+                    {specs.map((s, i) => (
+                      <React.Fragment key={i}>
+                        <div style={{ padding: "10px 14px", background: "#F8FAFC", fontSize: 13, fontWeight: 700, color: "#64748B", borderBottom: i < specs.length - 1 ? "1px solid #F1F5F9" : "none" }}>{s.label}</div>
+                        <div style={{ padding: "10px 14px", fontSize: 13, color: "#0F172A", fontWeight: 600, borderBottom: i < specs.length - 1 ? "1px solid #F1F5F9" : "none" }}>{s.value}</div>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* الشارات */}
             {(product.badges || []).length > 0 && (

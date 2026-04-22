@@ -18,10 +18,10 @@ function isAdminRequest(req) {
   }
 }
 
-// costPrice is internal — never expose to the storefront
+// costPrice and priceWithoutTax are internal — never expose to the storefront
 function stripPrivate(data) {
   if (!data) return data;
-  const { costPrice, ...rest } = data;
+  const { costPrice, priceWithoutTax, ...rest } = data;
   return rest;
 }
 
@@ -104,9 +104,12 @@ router.post("/bulk", requireAdmin, async (req, res) => {
       const p = list[i] || {};
       const fallbackName = p.name || p.nameEn;
       if (!fallbackName) { skipped++; errors.push({ row: i + 1, error: "اسم المنتج مفقود" }); continue; }
-      const price = Number(p.price);
+      // If supplier only gave "Price Without Tax", use it as initial sale price.
+      // Admin can override later from the edit page.
+      const rawPrice = (p.price !== undefined && p.price !== "") ? p.price : p.priceWithoutTax;
+      const price = Number(rawPrice);
       if (!Number.isFinite(price) || price < 0) {
-        skipped++; errors.push({ row: i + 1, error: `السعر غير صالح (${p.price})` }); continue;
+        skipped++; errors.push({ row: i + 1, error: `السعر غير صالح (${rawPrice})` }); continue;
       }
 
       const sku = p.sku ? String(p.sku).trim() : ("KSH-" + uuidv4().slice(0, 8).toUpperCase());
@@ -119,6 +122,7 @@ router.post("/bulk", requireAdmin, async (req, res) => {
         price,
         oldPrice: p.oldPrice !== undefined && p.oldPrice !== "" ? Number(p.oldPrice) : undefined,
         costPrice: p.costPrice !== undefined && p.costPrice !== "" ? Number(p.costPrice) : undefined,
+        priceWithoutTax: p.priceWithoutTax !== undefined && p.priceWithoutTax !== "" ? Number(p.priceWithoutTax) : undefined,
         currency: p.currency || "AED",
         category: targetCategory || rawCategory,
         supplierCategory: rawCategory && targetCategory && rawCategory !== targetCategory ? rawCategory : undefined,
@@ -126,6 +130,15 @@ router.post("/bulk", requireAdmin, async (req, res) => {
         brand: p.brand ? String(p.brand).trim() : "",
         stock: p.stock !== undefined && p.stock !== "" ? parseInt(p.stock) : 0,
         weight: p.weight !== undefined && p.weight !== "" ? Number(p.weight) : undefined,
+        packageWeight: p.packageWeight !== undefined && p.packageWeight !== "" ? Number(p.packageWeight) : undefined,
+        volumetricWeight: p.volumetricWeight !== undefined && p.volumetricWeight !== "" ? Number(p.volumetricWeight) : undefined,
+        productDimensions: p.productDimensions ? String(p.productDimensions).trim() : "",
+        packageDimensions: p.packageDimensions ? String(p.packageDimensions).trim() : "",
+        targetGender: p.targetGender ? String(p.targetGender).trim() : "",
+        recommendedAge: p.recommendedAge ? String(p.recommendedAge).trim() : "",
+        color: p.color ? String(p.color).trim() : "",
+        material: p.material ? String(p.material).trim() : "",
+        returns: p.returns ? String(p.returns).trim() : "",
         description: p.description ? String(p.description).trim() : "",
         descriptionEn: p.descriptionEn ? String(p.descriptionEn).trim() : "",
         badges: typeof p.badges === "string"

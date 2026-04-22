@@ -44,7 +44,13 @@ export default function AddProduct() {
   const toast    = useToast();
   const { categories: rawCats } = useCategories();
   const categories = rawCats.map(c => typeof c === "string" ? c : c?.name).filter(Boolean);
-  const [form, setForm] = useState({ name: "", nameEn: "", price: "", oldPrice: "", costPrice: "", category: "", brand: "", stock: "", weight: "", description: "", descriptionEn: "", badges: "", metaTitle: "", metaDescription: "", featured: false });
+  const [form, setForm] = useState({
+    name: "", nameEn: "", price: "", oldPrice: "", costPrice: "", priceWithoutTax: "",
+    category: "", brand: "", stock: "", weight: "",
+    packageWeight: "", volumetricWeight: "", productDimensions: "", packageDimensions: "",
+    targetGender: "", recommendedAge: "", color: "", material: "", returns: "",
+    description: "", descriptionEn: "", badges: "", metaTitle: "", metaDescription: "", featured: false,
+  });
 
   // صور متعددة: [{ url, uploading, progress }]
   const [images, setImages]     = useState([]);
@@ -157,11 +163,21 @@ export default function AddProduct() {
       price: parseFloat(form.price),
       oldPrice: form.oldPrice ? parseFloat(form.oldPrice) : undefined,
       costPrice: form.costPrice ? parseFloat(form.costPrice) : undefined,
+      priceWithoutTax: form.priceWithoutTax ? parseFloat(form.priceWithoutTax) : undefined,
       currency: "AED",
       category: form.category,
       brand: form.brand.trim(),
       stock: form.stock ? parseInt(form.stock) : 0,
       weight: form.weight !== "" ? Number(form.weight) : undefined,
+      packageWeight: form.packageWeight !== "" ? Number(form.packageWeight) : undefined,
+      volumetricWeight: form.volumetricWeight !== "" ? Number(form.volumetricWeight) : undefined,
+      productDimensions: form.productDimensions.trim(),
+      packageDimensions: form.packageDimensions.trim(),
+      targetGender: form.targetGender,
+      recommendedAge: form.recommendedAge.trim(),
+      color: form.color.trim(),
+      material: form.material.trim(),
+      returns: form.returns,
       description: form.description.trim(),
       descriptionEn: form.descriptionEn.trim(),
       badges: form.badges.split(",").map(b => b.trim()).filter(Boolean),
@@ -220,7 +236,7 @@ export default function AddProduct() {
                 <input placeholder="e.g. Wireless Headphones" value={form.nameEn} onChange={set("nameEn")} style={{ ...inputBase, direction: "ltr" }} onFocus={focusIn} onBlur={focusOut} />
               </div>
 
-              <div className="ap-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+              <div className="ap-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                 <div>
                   <label style={lbl}>السعر (درهم) *</label>
                   <input type="number" min="0" step="0.01" placeholder="0.00" value={form.price} onChange={set("price")} required style={inputBase} onFocus={focusIn} onBlur={focusOut} />
@@ -232,12 +248,23 @@ export default function AddProduct() {
                   </label>
                   <input type="number" min="0" step="0.01" placeholder="0.00" value={form.oldPrice} onChange={set("oldPrice")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
                 </div>
-                <div>
-                  <label style={lbl}>
-                    سعر التكلفة
-                    <span style={{ background: "#FEF3C7", color: "#B45309", borderRadius: 999, padding: "2px 8px", fontSize: 11, fontWeight: 800, marginRight: 6 }}>🔒 للأدمن</span>
-                  </label>
-                  <input type="number" min="0" step="0.01" placeholder="0.00" value={form.costPrice} onChange={set("costPrice")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+              </div>
+
+              {/* الأسعار الخاصة — للأدمن فقط */}
+              <div style={{ border: "1.5px solid #FDE68A", borderRadius: 16, padding: "16px 18px", background: "#FFFBEB" }}>
+                <div style={{ fontWeight: 800, fontSize: 14, color: "#92400E", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                  🔒 أسعار داخلية للأدمن فقط
+                  <span style={{ fontSize: 11, color: "#B45309", fontWeight: 600 }}>(لا تظهر للزبون)</span>
+                </div>
+                <div className="ap-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <div>
+                    <label style={lbl}>سعر التكلفة بدون ضريبة</label>
+                    <input type="number" min="0" step="0.01" placeholder="0.00" value={form.costPrice} onChange={set("costPrice")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                  </div>
+                  <div>
+                    <label style={lbl}>السعر بدون ضريبة</label>
+                    <input type="number" min="0" step="0.01" placeholder="0.00" value={form.priceWithoutTax} onChange={set("priceWithoutTax")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                  </div>
                 </div>
               </div>
 
@@ -261,6 +288,61 @@ export default function AddProduct() {
               <div>
                 <label style={lbl}>اسم الماركة</label>
                 <input placeholder="مثال: Nike, Samsung, Chanel..." value={form.brand} onChange={set("brand")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+              </div>
+
+              {/* معلومات تفصيلية — تظهر للزبون كجدول مواصفات */}
+              <div style={{ border: "1.5px solid #E0E7FF", borderRadius: 16, padding: "20px", background: "#F8FAFF" }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: "#0F172A", marginBottom: 4 }}>📋 معلومات تفصيلية</div>
+                <div style={{ fontSize: 12, color: "#64748B", marginBottom: 14 }}>تظهر بجدول المواصفات أسفل الوصف بصفحة المنتج</div>
+
+                <div className="ap-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <div>
+                    <label style={lbl}>سياسة الإرجاع</label>
+                    <select value={form.returns} onChange={set("returns")} style={{ ...inputBase, cursor: "pointer" }} onFocus={focusIn} onBlur={focusOut}>
+                      <option value="">-- اختر --</option>
+                      <option value="Returnable">قابل للإرجاع</option>
+                      <option value="Non-Returnable">غير قابل للإرجاع</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={lbl}>الجنس المستهدف</label>
+                    <select value={form.targetGender} onChange={set("targetGender")} style={{ ...inputBase, cursor: "pointer" }} onFocus={focusIn} onBlur={focusOut}>
+                      <option value="">-- اختر --</option>
+                      <option value="Unisex">للجنسين</option>
+                      <option value="Male">ذكر</option>
+                      <option value="Female">أنثى</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={lbl}>العمر الموصى به</label>
+                    <input placeholder="مثال: 1 Year+" value={form.recommendedAge} onChange={set("recommendedAge")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                  </div>
+                  <div>
+                    <label style={lbl}>اللون</label>
+                    <input placeholder="مثال: بني، أسود..." value={form.color} onChange={set("color")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                  </div>
+                  <div>
+                    <label style={lbl}>المادة</label>
+                    <input placeholder="مثال: بلاستيك، قطن..." value={form.material} onChange={set("material")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                  </div>
+                  <div>
+                    <label style={lbl}>وزن العبوة (كغ)</label>
+                    <input type="number" min="0" step="0.01" placeholder="0.00" value={form.packageWeight} onChange={set("packageWeight")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                  </div>
+                  <div>
+                    <label style={lbl}>الوزن الحجمي (كغ)</label>
+                    <input type="number" min="0" step="0.01" placeholder="0.00" value={form.volumetricWeight} onChange={set("volumetricWeight")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                  </div>
+                  <div></div>
+                  <div>
+                    <label style={lbl}>أبعاد المنتج</label>
+                    <input placeholder="مثال: 257 × 198 × 110" value={form.productDimensions} onChange={set("productDimensions")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                  </div>
+                  <div>
+                    <label style={lbl}>أبعاد العبوة</label>
+                    <input placeholder="مثال: 110 × 39 × 65" value={form.packageDimensions} onChange={set("packageDimensions")} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+                  </div>
+                </div>
               </div>
 
               <div>

@@ -11,8 +11,11 @@ import { useCategories } from "../hooks/useCategories";
 const CARD = { background: "#fff", borderRadius: 20, border: "1px solid #F1F5F9", boxShadow: shadow.md, padding: "24px" };
 
 const HEADERS = [
-  "name", "nameEn", "price", "oldPrice", "costPrice", "category", "brand",
-  "stock", "weight", "description", "descriptionEn", "badges",
+  "name", "nameEn", "price", "oldPrice", "costPrice", "priceWithoutTax", "category", "brand",
+  "stock", "weight", "packageWeight", "volumetricWeight",
+  "productDimensions", "packageDimensions",
+  "targetGender", "recommendedAge", "color", "material", "returns",
+  "description", "descriptionEn", "badges",
   "image", "images", "metaTitle", "metaDescription", "sku",
 ];
 
@@ -23,10 +26,20 @@ const SAMPLE = [
     price: "199",
     oldPrice: "249",
     costPrice: "120",
+    priceWithoutTax: "189",
     category: "إلكترونيات",
     brand: "Sony",
     stock: "25",
     weight: "0.3",
+    packageWeight: "0.4",
+    volumetricWeight: "0.5",
+    productDimensions: "20 x 15 x 8",
+    packageDimensions: "25 x 18 x 10",
+    targetGender: "Unisex",
+    recommendedAge: "12+",
+    color: "أسود",
+    material: "بلاستيك",
+    returns: "Returnable",
     description: "سماعات عالية الجودة مع عزل للضوضاء",
     descriptionEn: "High quality headphones with noise cancellation",
     badges: "جديد,الأكثر مبيعاً",
@@ -121,7 +134,12 @@ export default function BulkImport() {
     }
   };
 
-  const previewKeys = rows.length ? ["nameEn", "name", "sku", "price", "costPrice", "category"].filter((k) => rows.some((r) => r[k])) : [];
+  const previewKeys = rows.length
+    ? ["nameEn", "name", "sku", "price", "priceWithoutTax", "costPrice", "category", "brand",
+       "weight", "packageWeight", "productDimensions", "targetGender", "recommendedAge",
+       "color", "material", "returns"]
+      .filter((k) => rows.some((r) => r[k] !== undefined && r[k] !== ""))
+    : [];
 
   return (
     <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'Tajawal',sans-serif", direction: "rtl" }}>
