@@ -12,7 +12,7 @@ export function WishlistProvider({ children }) {
       const exists = prev.some(p => String(p.id) === String(product.id));
       const next = exists
         ? prev.filter(p => String(p.id) !== String(product.id))
-        : [...prev, { id: product.id, name: product.name, price: product.price, oldPrice: product.oldPrice, image: product.image, category: product.category }];
+        : [...prev, { id: product.id, name: product.name, nameEn: product.nameEn, price: product.price, oldPrice: product.oldPrice, image: product.image, category: product.category }];
       localStorage.setItem("wishlist", JSON.stringify(next));
       return next;
     });

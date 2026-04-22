@@ -54,7 +54,7 @@ export default function SearchAutocomplete({ placeholder, style, onClose }) {
   };
 
   const openProduct = (p) => {
-    pushRecent(p.name);
+    pushRecent(prodName(p));
     setOpen(false);
     navigate(`/product/${p.id}`);
     onClose?.();

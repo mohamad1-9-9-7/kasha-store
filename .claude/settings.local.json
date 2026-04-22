@@ -56,7 +56,11 @@
       "Bash(curl -s --ssl-no-revoke \"https://kashkha-backend.onrender.com/api/categories\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFkbWluIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzc2NzE4MjMzLCJleHAiOjE3NzczMjMwMzN9.wMPsTEG7JEsv1AQdccERVdKtSCoEkr22Hcm1_spaoXc\")",
       "Bash(curl -s --ssl-no-revoke -X DELETE https://kashkha-backend.onrender.com/api/products/TEST-DEPLOY-PROBE-2 -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFkbWluIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzc2NzE4MjMzLCJleHAiOjE3NzczMjMwMzN9.wMPsTEG7JEsv1AQdccERVdKtSCoEkr22Hcm1_spaoXc')",
       "Bash(curl -s --ssl-no-revoke -X DELETE https://kashkha-backend.onrender.com/api/categories/3a587bee-bfae-4c54-9426-2a0a34231ea9 -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFkbWluIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzc2NzE4MjMzLCJleHAiOjE3NzczMjMwMzN9.wMPsTEG7JEsv1AQdccERVdKtSCoEkr22Hcm1_spaoXc')",
-      "Bash(grep -E \"\\\\.\\(ts|tsx|js|jsx\\)$\")"
+      "Bash(grep -E \"\\\\.\\(ts|tsx|js|jsx\\)$\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(curl -s http://localhost:3001/api/products)",
+      "Bash(kill %1)",
+      "Bash(exit 0)"
     ]
   }
 }

@@ -120,10 +120,17 @@ export default function CartPage() {
 
   const subtotal     = useMemo(() => (items || []).reduce((s, it) => s + (Number(it.price) || 0) * (Number(it.qty) || 1), 0), [items]);
 
-  // Enriched cart items with product weights (for weight-based shipping)
+  // Enriched cart items — pull latest name/nameEn/image/weight from products list
+  // so language toggle works for items added before the nameEn field was stored.
   const enrichedItems = useMemo(() => (items || []).map((it) => {
     const p = allProducts.find((x) => String(x.id) === String(it.id));
-    return { ...it, weight: p?.weight ?? it.weight ?? 0 };
+    return {
+      ...it,
+      name:   p?.name   ?? it.name,
+      nameEn: p?.nameEn ?? it.nameEn,
+      image:  p?.image  ?? it.image,
+      weight: p?.weight ?? it.weight ?? 0,
+    };
   }), [items, allProducts]);
 
   // Zone-based shipping (falls back to flat shipping fee)
@@ -156,7 +163,8 @@ export default function CartPage() {
   const saveForLater = (it) => {
     wishlistToggle(it);
     remove(it.id);
-    toast(isAr ? `❤️ ${it.name} محفوظ للمفضلة` : `❤️ ${it.name} saved to wishlist`, "success");
+    const nm = prodName(it);
+    toast(isAr ? `❤️ ${nm} محفوظ للمفضلة` : `❤️ ${nm} saved to wishlist`, "success");
   };
 
   /* ── كوبون ── */
@@ -244,9 +252,10 @@ export default function CartPage() {
     for (const it of items) {
       const p = allProducts.find(x => String(x.id) === String(it.id));
       if (!p) continue;
+      const nm = prodName(p);
       if (Number.isFinite(p.stock)) {
-        if (p.stock <= 0) return toast(isAr ? `❌ "${it.name}" نفذ من المخزون` : `❌ "${it.name}" is out of stock`, "error");
-        if ((Number(it.qty) || 1) > p.stock) return toast(isAr ? `❌ "${it.name}": المتاح ${p.stock} فقط` : `❌ "${it.name}": only ${p.stock} available`, "error");
+        if (p.stock <= 0) return toast(isAr ? `❌ "${nm}" نفذ من المخزون` : `❌ "${nm}" is out of stock`, "error");
+        if ((Number(it.qty) || 1) > p.stock) return toast(isAr ? `❌ "${nm}": المتاح ${p.stock} فقط` : `❌ "${nm}": only ${p.stock} available`, "error");
       }
     }
     setLoading(true);
@@ -457,7 +466,7 @@ export default function CartPage() {
               </div>
 
               {/* المنتجات */}
-              {items.map(it => (
+              {enrichedItems.map(it => (
                 <div key={it.id} className="cart-item" style={{ background: "#fff", borderRadius: 18, border: "1px solid #F1F5F9", boxShadow: shadow.sm, padding: "16px", display: "grid", gridTemplateColumns: "88px 1fr auto", gap: 14, alignItems: "center", position: "relative" }}>
 
                   {/* صورة مع Hover Preview */}

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiFetch } from "../api";
-import { safeParse, fmt } from "../Theme";
+import { safeParse, fmt, prodName } from "../Theme";
 import MiniNav from "../components/MiniNav";
 import { useLang } from "../context/LanguageContext";
 import { T } from "../i18n";
+import { useProducts } from "../hooks/useProducts";
 
 const STATUSES_DATA = {
   NEW:        { col: "#6366F1", bg: "#EEF2FF", icon: "🆕" },
@@ -22,9 +23,16 @@ export default function MyOrders() {
   const t = k => T[lang][k] ?? T.ar[k] ?? k;
   const STATUSES = Object.fromEntries(Object.entries(STATUSES_DATA).map(([k, v]) => [k, { ...v, label: t("status_" + k) }]));
   const user = safeParse("user");
+  const { products } = useProducts();
   const [orders, setOrders]     = useState([]);
   const [loading, setLoading]   = useState(true);
   const [expanded, setExpanded] = useState(null);
+
+  // Pull current nameEn from products so old orders (stored only `name`) can switch language.
+  const nameFor = (it) => {
+    const p = products.find((x) => String(x.id) === String(it.id));
+    return prodName(p ? { name: p.name, nameEn: p.nameEn } : it);
+  };
 
   useEffect(() => {
     if (!user) { navigate("/user-login"); return; }
@@ -138,10 +146,10 @@ export default function MyOrders() {
                         {(o.items || []).map((it, i) => (
                           <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 12, padding: "10px 14px", border: "1px solid #F1F5F9" }}>
                             <div style={{ width: 48, height: 48, borderRadius: 10, overflow: "hidden", background: "#F1F5F9", flexShrink: 0 }}>
-                              <img src={it.image || ""} alt={it.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
+                              <img src={it.image || ""} alt={nameFor(it)} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
                             </div>
                             <div style={{ flex: 1 }}>
-                              <div style={{ fontWeight: 700, fontSize: 14, color: "#0F172A" }}>{it.name}</div>
+                              <div style={{ fontWeight: 700, fontSize: 14, color: "#0F172A" }}>{nameFor(it)}</div>
                               <div style={{ fontSize: 12, color: "#94A3B8" }}>{lang === "ar" ? "الكمية:" : "Qty:"} {it.qty}</div>
                               {it.variantSummary?.length > 0 && (
                                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>

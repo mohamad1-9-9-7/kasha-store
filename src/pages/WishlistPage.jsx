@@ -1,15 +1,23 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useWishlist } from "../context/WishlistContext";
 import { useLang } from "../context/LanguageContext";
 import { T } from "../i18n";
 import { fmt, fmtPrice, prodName } from "../Theme";
 import MiniNav from "../components/MiniNav";
+import { useProducts } from "../hooks/useProducts";
 
 export default function WishlistPage() {
   const { wishlist, toggle } = useWishlist();
+  const { products } = useProducts();
   const { lang } = useLang();
   const t = k => T[lang][k] ?? T.ar[k] ?? k;
+
+  // Pull latest name/nameEn from products for items saved before nameEn was stored.
+  const enrichedWishlist = useMemo(() => wishlist.map((w) => {
+    const p = products.find((x) => String(x.id) === String(w.id));
+    return p ? { ...w, name: p.name, nameEn: p.nameEn, image: p.image ?? w.image } : w;
+  }), [wishlist, products]);
 
   return (
     <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'Tajawal',sans-serif", direction: lang === "ar" ? "rtl" : "ltr" }}>
@@ -44,7 +52,7 @@ export default function WishlistPage() {
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 20 }}>
-            {wishlist.map((p, i) => {
+            {enrichedWishlist.map((p, i) => {
               const pct = (p.oldPrice > p.price) ? Math.round(100 - (p.price / p.oldPrice) * 100) : null;
               return (
                 <div key={p.id} className="wish-card" style={{ background: "#fff", borderRadius: 20, border: "1px solid #F1F5F9", boxShadow: "0 2px 12px rgba(0,0,0,.05)", overflow: "hidden", animation: `fadeUp .4s ${i * .05}s both`, position: "relative" }}>

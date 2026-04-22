@@ -445,13 +445,13 @@ export default function BundlePage() {
                         border: "1px solid #F1F5F9", flexShrink: 0, background: "#F8FAFC"
                       }}>
                         {it.image
-                          ? <img src={it.image} alt={it.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
+                          ? <img src={it.image} alt={prodName(it)} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
                           : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, opacity: .3 }}>📦</div>
                         }
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.name}</div>
-                        <div style={{ fontSize: 12, color: "#6366F1", fontWeight: 800 }}>{fmt(it.price)}</div>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{prodName(it)}</div>
+                        <div style={{ fontSize: 12, color: "#6366F1", fontWeight: 800 }}>{fmtPrice(it.price)}</div>
                       </div>
                       {/* كمية */}
                       <div style={{ display: "flex", alignItems: "center", border: "1.5px solid #E2E8F0", borderRadius: 8, overflow: "hidden" }}>

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
-import { C, shadow, r, safeParse, slugify, fmt, fmtPrice, catName, prodName } from "../Theme";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
+import { C, shadow, r, slugify, fmt, fmtPrice, catName, prodName } from "../Theme";
 import MiniNav from "../components/MiniNav";
 import { useLang } from "../context/LanguageContext";
 import { T } from "../i18n";
@@ -8,21 +8,132 @@ import { useCategories } from "../hooks/useCategories";
 import { useProducts } from "../hooks/useProducts";
 import { useRatingsSummary } from "../hooks/useRatings";
 
+const FREE_SHIP_THRESHOLD = 200;
+const NEW_DAYS = 30;
+
+/* ═══════════ مكوّنات فلاتر قابلة لإعادة الاستخدام ═══════════ */
+
+function Section({ title, icon, children, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ borderBottom: "1px solid #F1F5F9", padding: "14px 0" }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
+          background: "transparent", border: "none", padding: 0, cursor: "pointer",
+          fontFamily: "'Tajawal',sans-serif", color: "#0F172A", fontSize: 14, fontWeight: 800,
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {icon && <span style={{ fontSize: 14 }}>{icon}</span>}
+          {title}
+        </span>
+        <span style={{ color: "#94A3B8", fontSize: 14, transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▾</span>
+      </button>
+      {open && <div style={{ marginTop: 12 }}>{children}</div>}
+    </div>
+  );
+}
+
+function Checkbox({ checked, onChange, label, count, disabled, swatch }) {
+  const isZero = count === 0;
+  return (
+    <label style={{
+      display: "flex", alignItems: "center", gap: 10, padding: "6px 2px", cursor: (disabled || isZero) ? "not-allowed" : "pointer",
+      opacity: (disabled || isZero) ? 0.45 : 1, userSelect: "none",
+    }}>
+      <input
+        type="checkbox"
+        checked={!!checked}
+        disabled={disabled || isZero}
+        onChange={e => onChange(e.target.checked)}
+        style={{ width: 16, height: 16, accentColor: "#6366F1", cursor: "inherit" }}
+      />
+      {swatch && (
+        <span style={{ display: "inline-block", width: 16, height: 16, borderRadius: "50%", background: swatch, border: "1px solid #E2E8F0" }} />
+      )}
+      <span style={{ flex: 1, fontSize: 13, color: "#334155", fontWeight: 600, fontFamily: "'Tajawal',sans-serif" }}>{label}</span>
+      {typeof count === "number" && (
+        <span style={{ fontSize: 12, color: "#94A3B8", fontWeight: 700 }}>({count})</span>
+      )}
+    </label>
+  );
+}
+
+function ShowMoreList({ items, renderItem, initial = 6, lang }) {
+  const [showAll, setShowAll] = useState(false);
+  const [query, setQuery] = useState("");
+  const t = k => T[lang][k] ?? T.ar[k] ?? k;
+  const filtered = query ? items.filter(it => String(it.label || it).toLowerCase().includes(query.toLowerCase())) : items;
+  const shown = showAll ? filtered : filtered.slice(0, initial);
+  return (
+    <>
+      {items.length > 10 && (
+        <input
+          placeholder={t("f_search_in")}
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          style={{
+            width: "100%", padding: "7px 10px", borderRadius: 8, border: "1px solid #E2E8F0",
+            fontSize: 12, marginBottom: 8, fontFamily: "'Tajawal',sans-serif", outline: "none", background: "#F8FAFC", boxSizing: "border-box",
+          }}
+        />
+      )}
+      <div>
+        {shown.map(renderItem)}
+        {filtered.length === 0 && (
+          <div style={{ fontSize: 12, color: "#94A3B8", padding: "6px 0" }}>{t("f_no_match")}</div>
+        )}
+      </div>
+      {filtered.length > initial && (
+        <button
+          onClick={() => setShowAll(v => !v)}
+          style={{
+            marginTop: 6, background: "transparent", border: "none", color: "#6366F1",
+            fontSize: 12, fontWeight: 800, cursor: "pointer", padding: 0, fontFamily: "'Tajawal',sans-serif",
+          }}
+        >
+          {showAll ? `− ${t("f_show_less")}` : `+ ${t("f_show_more")} (${filtered.length - initial})`}
+        </button>
+      )}
+    </>
+  );
+}
+
+/* ═══════════ الصفحة الرئيسية ═══════════ */
+
 export default function CategoryPage() {
   const { categoryId } = useParams();
   const navigate = useNavigate();
   const { lang } = useLang();
   const t = k => T[lang][k] ?? T.ar[k] ?? k;
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [nowMs, setNowMs] = useState(Date.now());
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState("default");
-  const [brand, setBrand] = useState("");
-  const [priceMin, setPriceMin] = useState("");
-  const [priceMax, setPriceMax] = useState("");
-  const [colorFilter, setColorFilter] = useState("");
-  const [sizeFilter, setSizeFilter] = useState("");
-  const [minStars, setMinStars] = useState(0);
-  const [showFilters, setShowFilters] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // ─── حالة الفلاتر (مربوطة مع الـ URL)
+  const [search, setSearch] = useState(searchParams.get("q") || "");
+  const [sort, setSort] = useState(searchParams.get("sort") || "default");
+  const [priceMin, setPriceMin] = useState(searchParams.get("pmin") || "");
+  const [priceMax, setPriceMax] = useState(searchParams.get("pmax") || "");
+  const [minStars, setMinStars] = useState(Number(searchParams.get("stars") || 0));
+
+  const initArr = (key) => (searchParams.get(key) ? searchParams.get(key).split(",").filter(Boolean) : []);
+  const [brands, setBrands] = useState(initArr("brand"));
+  const [colors, setColors] = useState(initArr("color"));
+  const [sizes, setSizes] = useState(initArr("size"));
+  const [ages, setAges] = useState(initArr("age"));
+  const [genders, setGenders] = useState(initArr("gender"));
+  const [materials, setMaterials] = useState(initArr("mat"));
+
+  const [availability, setAvailability] = useState(searchParams.get("avail") || ""); // "in" | "out" | ""
+  const [onSale, setOnSale] = useState(searchParams.get("sale") === "1");
+  const [newArrivals, setNewArrivals] = useState(searchParams.get("new") === "1");
+  const [freeShip, setFreeShip] = useState(searchParams.get("ship") === "1");
+  const [bestsellers, setBestsellers] = useState(searchParams.get("best") === "1");
+  const [minDiscount, setMinDiscount] = useState(Number(searchParams.get("disc") || 0));
 
   const { categories } = useCategories();
   const { products: allProds } = useProducts();
@@ -35,40 +146,176 @@ export default function CategoryPage() {
 
   const products = useMemo(() => allProds.filter(p => slugify(p?.category) === categoryId), [allProds, categoryId]);
 
-  const brands = useMemo(() => {
-    const set = new Set(products.map(p => (p.brand || "").trim()).filter(Boolean));
-    return Array.from(set).sort();
-  }, [products]);
+  const productStars = (pid) => Number(ratingsSummary[String(pid)]?.avg || 0);
+  const productRatingCount = (pid) => Number(ratingsSummary[String(pid)]?.count || 0);
 
-  // Collect available colors and sizes from product variants
-  const { colors, sizes, priceRange } = useMemo(() => {
-    const colorMap = new Map(); // label → hex
-    const sizeSet = new Set();
+  // ─── استخراج القيم المتاحة من منتجات القسم
+  const facets = useMemo(() => {
+    const brandMap = new Map();
+    const colorMap = new Map(); // label → { hex, count }
+    const sizeMap = new Map();
+    const ageMap = new Map();
+    const genderMap = new Map();
+    const materialMap = new Map();
     let minP = Infinity, maxP = -Infinity;
+    let inStockN = 0, outStockN = 0, onSaleN = 0, newN = 0, shipN = 0, bestN = 0;
+    const now = Date.now();
+
     products.forEach((p) => {
       const price = Number(p.price) || 0;
       if (price < minP) minP = price;
       if (price > maxP) maxP = price;
+
+      const stock = Number(p.stock);
+      if (Number.isFinite(stock) && stock <= 0) outStockN++; else inStockN++;
+
+      if (Number(p.oldPrice) > price) onSaleN++;
+      if (price >= FREE_SHIP_THRESHOLD) shipN++;
+      if (p.featured) bestN++;
+
+      const created = p.createdAt ? new Date(p.createdAt).getTime() : 0;
+      if (created && now - created <= NEW_DAYS * 86400000) newN++;
+
+      const bn = (p.brand || "").trim();
+      if (bn) brandMap.set(bn, (brandMap.get(bn) || 0) + 1);
+
+      const gn = (p.targetGender || "").trim();
+      if (gn) genderMap.set(gn, (genderMap.get(gn) || 0) + 1);
+
+      const mt = (p.material || "").trim();
+      if (mt) materialMap.set(mt, (materialMap.get(mt) || 0) + 1);
+
+      const ra = (p.recommendedAge || "").trim();
+      if (ra) ageMap.set(ra, (ageMap.get(ra) || 0) + 1);
+
+      const seenColors = new Set(), seenSizes = new Set(), seenAges = new Set();
       (p.variants || []).forEach((g) => {
         (g.options || []).forEach((o) => {
-          if (g.type === "color" && o.label) colorMap.set(o.label, o.hex || "#94A3B8");
-          if ((g.type === "size" || g.type === "number") && o.label) sizeSet.add(o.label);
+          if (g.type === "color" && o.label && !seenColors.has(o.label)) {
+            seenColors.add(o.label);
+            const cur = colorMap.get(o.label) || { hex: o.hex || "#94A3B8", count: 0 };
+            cur.count++;
+            if (o.hex) cur.hex = o.hex;
+            colorMap.set(o.label, cur);
+          }
+          if ((g.type === "size" || g.type === "number") && o.label && !seenSizes.has(o.label)) {
+            seenSizes.add(o.label);
+            sizeMap.set(o.label, (sizeMap.get(o.label) || 0) + 1);
+          }
+          if (g.type === "age" && o.label && !seenAges.has(o.label)) {
+            seenAges.add(o.label);
+            ageMap.set(o.label, (ageMap.get(o.label) || 0) + 1);
+          }
         });
       });
     });
+
     return {
-      colors: Array.from(colorMap.entries()).map(([label, hex]) => ({ label, hex })),
-      sizes: Array.from(sizeSet),
+      brands: [...brandMap.entries()].map(([label, count]) => ({ label, count })).sort((a,b) => b.count - a.count),
+      colors: [...colorMap.entries()].map(([label, v]) => ({ label, hex: v.hex, count: v.count })),
+      sizes: [...sizeMap.entries()].map(([label, count]) => ({ label, count })),
+      ages: [...ageMap.entries()].map(([label, count]) => ({ label, count })),
+      genders: [...genderMap.entries()].map(([label, count]) => ({ label, count })),
+      materials: [...materialMap.entries()].map(([label, count]) => ({ label, count })),
       priceRange: products.length ? { min: Math.floor(minP), max: Math.ceil(maxP) } : { min: 0, max: 1000 },
+      counts: { inStock: inStockN, outStock: outStockN, onSale: onSaleN, new: newN, ship: shipN, best: bestN },
     };
   }, [products]);
 
-  const productStars = (pid) => Number(ratingsSummary[String(pid)]?.avg || 0);
-  const productRatingCount = (pid) => Number(ratingsSummary[String(pid)]?.count || 0);
+  // ─── تطبيق الفلاتر
+  const filtered = useMemo(() => {
+    let arr = [...products];
+    const now = Date.now();
+
+    if (search) arr = arr.filter(p => (p.name || p.nameEn || "").toLowerCase().includes(search.toLowerCase()));
+
+    if (availability === "in") arr = arr.filter(p => { const s = Number(p.stock); return !Number.isFinite(s) || s > 0; });
+    if (availability === "out") arr = arr.filter(p => { const s = Number(p.stock); return Number.isFinite(s) && s <= 0; });
+
+    if (onSale) arr = arr.filter(p => Number(p.oldPrice) > Number(p.price));
+    if (newArrivals) arr = arr.filter(p => {
+      const c = p.createdAt ? new Date(p.createdAt).getTime() : 0;
+      return c && now - c <= NEW_DAYS * 86400000;
+    });
+    if (freeShip) arr = arr.filter(p => Number(p.price) >= FREE_SHIP_THRESHOLD);
+    if (bestsellers) arr = arr.filter(p => p.featured);
+
+    if (minDiscount > 0) arr = arr.filter(p => {
+      const old = Number(p.oldPrice), price = Number(p.price);
+      if (!(old > price)) return false;
+      const pct = Math.round(100 - (price / old) * 100);
+      return pct >= minDiscount;
+    });
+
+    if (brands.length) arr = arr.filter(p => brands.includes((p.brand || "").trim()));
+    if (genders.length) arr = arr.filter(p => genders.includes((p.targetGender || "").trim()));
+    if (materials.length) arr = arr.filter(p => materials.includes((p.material || "").trim()));
+
+    const minN = priceMin === "" ? -Infinity : Number(priceMin);
+    const maxN = priceMax === "" ? Infinity : Number(priceMax);
+    if (Number.isFinite(minN) || Number.isFinite(maxN)) {
+      arr = arr.filter((p) => {
+        const pr = Number(p.price) || 0;
+        return pr >= minN && pr <= maxN;
+      });
+    }
+
+    if (colors.length) arr = arr.filter(p =>
+      (p.variants || []).some(g => g.type === "color" && (g.options || []).some(o => colors.includes(o.label)))
+    );
+    if (sizes.length) arr = arr.filter(p =>
+      (p.variants || []).some(g => (g.type === "size" || g.type === "number") && (g.options || []).some(o => sizes.includes(o.label)))
+    );
+    if (ages.length) arr = arr.filter(p => {
+      if (ages.includes((p.recommendedAge || "").trim())) return true;
+      return (p.variants || []).some(g => g.type === "age" && (g.options || []).some(o => ages.includes(o.label)));
+    });
+
+    if (minStars > 0) arr = arr.filter(p => productStars(p.id) >= minStars);
+
+    // الترتيب
+    if (sort === "price-asc")  arr.sort((a, b) => Number(a.price) - Number(b.price));
+    if (sort === "price-desc") arr.sort((a, b) => Number(b.price) - Number(a.price));
+    if (sort === "rating")     arr.sort((a, b) => productStars(b.id) - productStars(a.id));
+    if (sort === "bestselling") arr.sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || productStars(b.id) - productStars(a.id));
+    if (sort === "discount") arr.sort((a, b) => {
+      const da = Number(a.oldPrice) > Number(a.price) ? (1 - Number(a.price) / Number(a.oldPrice)) : 0;
+      const db = Number(b.oldPrice) > Number(b.price) ? (1 - Number(b.price) / Number(b.oldPrice)) : 0;
+      return db - da;
+    });
+    if (sort === "default" || sort === "newest") {
+      arr.sort((a, b) => (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime()));
+    }
+
+    return arr;
+  }, [products, search, sort, brands, genders, materials, priceMin, priceMax, colors, sizes, ages, minStars, availability, onSale, newArrivals, freeShip, bestsellers, minDiscount, ratingsSummary]);
+
+  // ─── حفظ الفلاتر في URL
+  useEffect(() => {
+    const p = {};
+    if (search) p.q = search;
+    if (sort && sort !== "default") p.sort = sort;
+    if (priceMin) p.pmin = priceMin;
+    if (priceMax) p.pmax = priceMax;
+    if (minStars) p.stars = minStars;
+    if (brands.length) p.brand = brands.join(",");
+    if (colors.length) p.color = colors.join(",");
+    if (sizes.length) p.size = sizes.join(",");
+    if (ages.length) p.age = ages.join(",");
+    if (genders.length) p.gender = genders.join(",");
+    if (materials.length) p.mat = materials.join(",");
+    if (availability) p.avail = availability;
+    if (onSale) p.sale = "1";
+    if (newArrivals) p.new = "1";
+    if (freeShip) p.ship = "1";
+    if (bestsellers) p.best = "1";
+    if (minDiscount) p.disc = minDiscount;
+    setSearchParams(p, { replace: true });
+  }, [search, sort, priceMin, priceMax, minStars, brands, colors, sizes, ages, genders, materials, availability, onSale, newArrivals, freeShip, bestsellers, minDiscount]);
 
   useEffect(() => {
-    const t = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(t);
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
   }, []);
 
   const countdown = (endIso) => {
@@ -79,69 +326,265 @@ export default function CategoryPage() {
     return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   };
 
-  const filtered = useMemo(() => {
-    let arr = [...products];
-    if (search) arr = arr.filter(p => p.name?.toLowerCase().includes(search.toLowerCase()));
-    if (brand)  arr = arr.filter(p => (p.brand || "").trim() === brand);
-    const minN = priceMin === "" ? -Infinity : Number(priceMin);
-    const maxN = priceMax === "" ? Infinity : Number(priceMax);
-    if (Number.isFinite(minN) || Number.isFinite(maxN)) {
-      arr = arr.filter((p) => {
-        const pr = Number(p.price) || 0;
-        return pr >= minN && pr <= maxN;
-      });
-    }
-    if (colorFilter) {
-      arr = arr.filter((p) =>
-        (p.variants || []).some((g) => g.type === "color" && (g.options || []).some((o) => o.label === colorFilter))
-      );
-    }
-    if (sizeFilter) {
-      arr = arr.filter((p) =>
-        (p.variants || []).some((g) => (g.type === "size" || g.type === "number") && (g.options || []).some((o) => o.label === sizeFilter))
-      );
-    }
-    if (minStars > 0) {
-      arr = arr.filter((p) => productStars(p.id) >= minStars);
-    }
-    if (sort === "price-asc")  arr.sort((a, b) => a.price - b.price);
-    if (sort === "price-desc") arr.sort((a, b) => b.price - a.price);
-    if (sort === "rating")     arr.sort((a, b) => productStars(b.id) - productStars(a.id));
-    return arr;
-  }, [products, search, sort, brand, priceMin, priceMax, colorFilter, sizeFilter, minStars, ratingsSummary]);
+  // ─── عدّاد الفلاتر المفعّلة + قائمة chips
+  const activeChips = useMemo(() => {
+    const chips = [];
+    if (availability === "in") chips.push({ key: "avail", label: t("f_in_stock"), clear: () => setAvailability("") });
+    if (availability === "out") chips.push({ key: "avail", label: t("f_out_of_stock"), clear: () => setAvailability("") });
+    if (onSale) chips.push({ key: "sale", label: t("f_on_sale"), clear: () => setOnSale(false) });
+    if (newArrivals) chips.push({ key: "new", label: t("f_new_arrivals"), clear: () => setNewArrivals(false) });
+    if (freeShip) chips.push({ key: "ship", label: t("f_free_shipping"), clear: () => setFreeShip(false) });
+    if (bestsellers) chips.push({ key: "best", label: t("f_bestsellers"), clear: () => setBestsellers(false) });
+    if (minDiscount) chips.push({ key: "disc", label: `${minDiscount}%+`, clear: () => setMinDiscount(0) });
+    if (priceMin || priceMax) chips.push({ key: "price", label: `${priceMin || 0} – ${priceMax || "∞"}`, clear: () => { setPriceMin(""); setPriceMax(""); } });
+    if (minStars) chips.push({ key: "stars", label: `★ ${minStars}+`, clear: () => setMinStars(0) });
+    brands.forEach(b => chips.push({ key: `b-${b}`, label: b, clear: () => setBrands(arr => arr.filter(x => x !== b)) }));
+    colors.forEach(c => chips.push({ key: `c-${c}`, label: c, clear: () => setColors(arr => arr.filter(x => x !== c)) }));
+    sizes.forEach(s => chips.push({ key: `s-${s}`, label: s, clear: () => setSizes(arr => arr.filter(x => x !== s)) }));
+    ages.forEach(a => chips.push({ key: `a-${a}`, label: a, clear: () => setAges(arr => arr.filter(x => x !== a)) }));
+    genders.forEach(g => chips.push({ key: `g-${g}`, label: g, clear: () => setGenders(arr => arr.filter(x => x !== g)) }));
+    materials.forEach(m => chips.push({ key: `m-${m}`, label: m, clear: () => setMaterials(arr => arr.filter(x => x !== m)) }));
+    return chips;
+  }, [availability, onSale, newArrivals, freeShip, bestsellers, minDiscount, priceMin, priceMax, minStars, brands, colors, sizes, ages, genders, materials, lang]);
 
-  const activeFilterCount = [
-    brand, priceMin, priceMax, colorFilter, sizeFilter, minStars > 0 ? "stars" : ""
-  ].filter(Boolean).length;
-
-  const clearFilters = () => {
-    setBrand(""); setPriceMin(""); setPriceMax("");
-    setColorFilter(""); setSizeFilter(""); setMinStars(0);
+  const clearAll = () => {
+    setSearch(""); setPriceMin(""); setPriceMax("");
+    setBrands([]); setColors([]); setSizes([]); setAges([]); setGenders([]); setMaterials([]);
+    setAvailability(""); setOnSale(false); setNewArrivals(false); setFreeShip(false); setBestsellers(false);
+    setMinDiscount(0); setMinStars(0);
   };
+
+  const toggleIn = (arr, setter, value) => {
+    if (arr.includes(value)) setter(arr.filter(x => x !== value));
+    else setter([...arr, value]);
+  };
+
+  /* ═══════════ الشريط الجانبي (نفس المحتوى للديسكتوب والدراوَر) ═══════════ */
+  const SidebarContent = (
+    <>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 10, borderBottom: "2px solid #F1F5F9" }}>
+        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "#0F172A" }}>{t("f_filters")}</h3>
+        {activeChips.length > 0 && (
+          <button onClick={clearAll} style={{
+            background: "transparent", border: "none", color: "#EF4444", fontSize: 12, fontWeight: 800,
+            cursor: "pointer", fontFamily: "'Tajawal',sans-serif",
+          }}>
+            🧹 {t("f_clear_all")}
+          </button>
+        )}
+      </div>
+
+      {/* العروض */}
+      <Section title={t("f_offers")} icon="🔥">
+        <Checkbox label={t("f_on_sale")} count={facets.counts.onSale} checked={onSale} onChange={setOnSale} />
+        <Checkbox label={t("f_new_arrivals")} count={facets.counts.new} checked={newArrivals} onChange={setNewArrivals} />
+        <Checkbox label={t("f_free_shipping")} count={facets.counts.ship} checked={freeShip} onChange={setFreeShip} />
+        <Checkbox label={t("f_bestsellers")} count={facets.counts.best} checked={bestsellers} onChange={setBestsellers} />
+        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+          {[20, 50].map(v => (
+            <button key={v} onClick={() => setMinDiscount(minDiscount === v ? 0 : v)} style={{
+              background: minDiscount === v ? "#FEE2E2" : "#F1F5F9", color: minDiscount === v ? "#B91C1C" : "#334155",
+              border: `1.5px solid ${minDiscount === v ? "#EF4444" : "transparent"}`, borderRadius: 999,
+              padding: "5px 12px", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "'Tajawal',sans-serif",
+            }}>
+              {v}%+
+            </button>
+          ))}
+        </div>
+      </Section>
+
+      {/* التوفر */}
+      <Section title={t("f_availability")} icon="📦">
+        <Checkbox label={t("f_in_stock")} count={facets.counts.inStock} checked={availability === "in"} onChange={v => setAvailability(v ? "in" : "")} />
+        <Checkbox label={t("f_out_of_stock")} count={facets.counts.outStock} checked={availability === "out"} onChange={v => setAvailability(v ? "out" : "")} />
+      </Section>
+
+      {/* السعر */}
+      <Section title={t("f_price")} icon="💰">
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
+          <input type="number" placeholder={`${t("f_price_from")} ${facets.priceRange.min}`} value={priceMin} onChange={e => setPriceMin(e.target.value)}
+            style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12, fontFamily: "'Tajawal',sans-serif", outline: "none", background: "#F8FAFC", minWidth: 0, boxSizing: "border-box" }} />
+          <span style={{ color: "#94A3B8" }}>—</span>
+          <input type="number" placeholder={`${t("f_price_to")} ${facets.priceRange.max}`} value={priceMax} onChange={e => setPriceMax(e.target.value)}
+            style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12, fontFamily: "'Tajawal',sans-serif", outline: "none", background: "#F8FAFC", minWidth: 0, boxSizing: "border-box" }} />
+        </div>
+        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+          {[{ l: "< 50", min: "", max: 50 }, { l: "50-150", min: 50, max: 150 }, { l: "150-500", min: 150, max: 500 }, { l: "> 500", min: 500, max: "" }].map((x) => (
+            <button key={x.l} onClick={() => { setPriceMin(String(x.min)); setPriceMax(String(x.max)); }}
+              style={{ background: "#F1F5F9", color: "#334155", border: "none", borderRadius: 999, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+              {x.l}
+            </button>
+          ))}
+        </div>
+      </Section>
+
+      {/* التقييم */}
+      <Section title={t("f_rating")} icon="⭐">
+        {[4.5, 4, 3].map(v => (
+          <Checkbox key={v}
+            label={`${v}+ ${t("f_stars_plus")}`}
+            checked={minStars === v}
+            onChange={(on) => setMinStars(on ? v : 0)}
+          />
+        ))}
+      </Section>
+
+      {/* الماركات */}
+      {facets.brands.length > 0 && (
+        <Section title={t("f_brand")} icon="🏷️">
+          <ShowMoreList
+            items={facets.brands}
+            lang={lang}
+            renderItem={(b) => (
+              <Checkbox
+                key={b.label}
+                label={b.label}
+                count={b.count}
+                checked={brands.includes(b.label)}
+                onChange={() => toggleIn(brands, setBrands, b.label)}
+              />
+            )}
+          />
+        </Section>
+      )}
+
+      {/* اللون */}
+      {facets.colors.length > 0 && (
+        <Section title={t("f_color")} icon="🎨">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {facets.colors.map((c) => {
+              const active = colors.includes(c.label);
+              return (
+                <button key={c.label}
+                  title={`${c.label} (${c.count})`}
+                  onClick={() => toggleIn(colors, setColors, c.label)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5, padding: "3px 9px 3px 3px",
+                    background: active ? "#EEF2FF" : "#F8FAFC",
+                    border: `1.5px solid ${active ? "#6366F1" : "#E2E8F0"}`, borderRadius: 999,
+                    cursor: "pointer", fontFamily: "'Tajawal',sans-serif", fontSize: 11, fontWeight: 700, color: "#334155",
+                  }}>
+                  <span style={{ display: "inline-block", width: 18, height: 18, borderRadius: "50%", background: c.hex, border: "1.5px solid #fff", boxShadow: "0 0 0 1px #E2E8F0" }} />
+                  {c.label}
+                  <span style={{ color: "#94A3B8", fontSize: 10 }}>({c.count})</span>
+                </button>
+              );
+            })}
+          </div>
+        </Section>
+      )}
+
+      {/* المقاس */}
+      {facets.sizes.length > 0 && (
+        <Section title={t("f_size")} icon="📏">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {facets.sizes.map((s) => {
+              const active = sizes.includes(s.label);
+              return (
+                <button key={s.label} onClick={() => toggleIn(sizes, setSizes, s.label)}
+                  style={{
+                    minWidth: 40, padding: "6px 10px", background: active ? "#6366F1" : "#fff",
+                    color: active ? "#fff" : "#334155", border: `1.5px solid ${active ? "#6366F1" : "#E2E8F0"}`,
+                    borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "'Tajawal',sans-serif",
+                  }}>
+                  {s.label} <span style={{ fontSize: 10, opacity: .7 }}>({s.count})</span>
+                </button>
+              );
+            })}
+          </div>
+        </Section>
+      )}
+
+      {/* العمر */}
+      {facets.ages.length > 0 && (
+        <Section title={t("f_age")} icon="🎂">
+          <ShowMoreList
+            items={facets.ages}
+            lang={lang}
+            renderItem={(a) => (
+              <Checkbox
+                key={a.label}
+                label={a.label}
+                count={a.count}
+                checked={ages.includes(a.label)}
+                onChange={() => toggleIn(ages, setAges, a.label)}
+              />
+            )}
+          />
+        </Section>
+      )}
+
+      {/* الجنس */}
+      {facets.genders.length > 0 && (
+        <Section title={t("f_gender")} icon="👶">
+          {facets.genders.map((g) => (
+            <Checkbox
+              key={g.label}
+              label={g.label}
+              count={g.count}
+              checked={genders.includes(g.label)}
+              onChange={() => toggleIn(genders, setGenders, g.label)}
+            />
+          ))}
+        </Section>
+      )}
+
+      {/* المادة */}
+      {facets.materials.length > 0 && (
+        <Section title={t("f_material")} icon="🧵">
+          <ShowMoreList
+            items={facets.materials}
+            lang={lang}
+            renderItem={(m) => (
+              <Checkbox
+                key={m.label}
+                label={m.label}
+                count={m.count}
+                checked={materials.includes(m.label)}
+                onChange={() => toggleIn(materials, setMaterials, m.label)}
+              />
+            )}
+          />
+        </Section>
+      )}
+    </>
+  );
 
   return (
     <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'Tajawal',sans-serif", direction: lang === "ar" ? "rtl" : "ltr" }}>
       <style>{`
         @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes slideIn { from{transform:translateX(100%)} to{transform:translateX(0)} }
         .prod-card { transition: transform .22s ease, box-shadow .22s ease; }
         .prod-card:hover { transform: translateY(-6px); box-shadow: 0 20px 44px rgba(0,0,0,.12)!important; }
+        .cat-body { display:grid; grid-template-columns: 260px 1fr; gap: 24px; align-items: start; }
+        .cat-sidebar { position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto; }
+        .cat-filter-btn { display: none; }
+        .cat-drawer { display: none; }
+        @media(max-width:900px){
+          .cat-body { grid-template-columns: 1fr; }
+          .cat-sidebar { display: none; }
+          .cat-filter-btn { display: inline-flex !important; }
+          .cat-drawer.open { display: block; }
+        }
         @media(max-width:768px){
-          .cat-filter { flex-direction: column !important; }
-          .cat-grid   { grid-template-columns: repeat(2,1fr) !important; }
+          .cat-grid { grid-template-columns: repeat(2,1fr) !important; gap: 14px !important; }
           .cat-header { padding: 24px 16px !important; }
         }
         @media(max-width:480px){
-          .cat-grid { grid-template-columns: repeat(2,1fr) !important; gap: 12px !important; }
+          .cat-grid { grid-template-columns: repeat(2,1fr) !important; gap: 10px !important; }
         }
+        .cat-sidebar::-webkit-scrollbar { width: 6px; }
+        .cat-sidebar::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 3px; }
       `}</style>
 
       <MiniNav title={categoryName} backTo="/home" />
 
       {/* هيدر القسم */}
       <div className="cat-header" style={{ background: "linear-gradient(135deg,#0F172A,#1E1B4B)", padding: "36px 24px", color: "#fff" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
           <div>
-            <p style={{ color: "#818CF8", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>تسوّق من قسم</p>
+            <p style={{ color: "#818CF8", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{lang === "ar" ? "تسوّق من قسم" : "Shop from"}</p>
             <h1 style={{ fontSize: 28, fontWeight: 900, color: "#fff", margin: 0 }}>{categoryName}</h1>
           </div>
           <div style={{ background: "rgba(255,255,255,.1)", borderRadius: 12, padding: "10px 20px", border: "1px solid rgba(255,255,255,.15)", fontSize: 14, color: "#C7D2FE", fontWeight: 700 }}>
@@ -150,209 +593,206 @@ export default function CategoryPage() {
         </div>
       </div>
 
-      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 20px" }}>
+      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 20px" }}>
 
-        {/* شريط البحث والفلترة */}
+        {/* شريط الأدوات */}
         {products.length > 0 && (
-          <>
-            <div className="cat-filter" style={{ background: "#fff", borderRadius: 16, border: "1px solid #E2E8F0", boxShadow: shadow.sm, padding: "16px 20px", marginBottom: 12, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-              <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
-                <input
-                  placeholder={t("cat_search_ph")}
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  style={{ width: "100%", padding: "10px 40px 10px 14px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 14, outline: "none", background: "#F8FAFC", boxSizing: "border-box", fontFamily: "'Tajawal',sans-serif", transition: "border-color .2s" }}
-                  onFocus={e => { e.target.style.borderColor = "#6366F1"; e.target.style.boxShadow = "0 0 0 3px rgba(99,102,241,.1)"; }}
-                  onBlur={e => { e.target.style.borderColor = "#E2E8F0"; e.target.style.boxShadow = "none"; }}
-                />
-                <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", fontSize: 16, pointerEvents: "none" }}>🔍</span>
-              </div>
-              <button onClick={() => setShowFilters(v => !v)}
-                style={{ padding: "10px 16px", borderRadius: 10, border: `1.5px solid ${activeFilterCount ? "#6366F1" : "#E2E8F0"}`, background: activeFilterCount ? "#EEF2FF" : "#F8FAFC", color: activeFilterCount ? "#6366F1" : "#334155", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif", display: "flex", alignItems: "center", gap: 6 }}>
-                🎛️ فلاتر {activeFilterCount > 0 && <span style={{ background: "#6366F1", color: "#fff", borderRadius: 999, padding: "1px 8px", fontSize: 11 }}>{activeFilterCount}</span>}
-              </button>
-              <select value={sort} onChange={e => setSort(e.target.value)}
-                style={{ padding: "10px 14px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 14, background: "#F8FAFC", color: "#334155", fontWeight: 600, fontFamily: "'Tajawal',sans-serif", cursor: "pointer", outline: "none" }}>
-                <option value="default">{t("cat_sort_new")}</option>
-                <option value="price-asc">{t("cat_sort_price_asc")}</option>
-                <option value="price-desc">{t("cat_sort_price_desc")}</option>
-                <option value="rating">⭐ الأعلى تقييماً</option>
-              </select>
+          <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E2E8F0", boxShadow: shadow.sm, padding: "12px 16px", marginBottom: 16, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 180, position: "relative" }}>
+              <input
+                placeholder={t("cat_search_ph")}
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{ width: "100%", padding: "9px 36px 9px 12px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 13, outline: "none", background: "#F8FAFC", boxSizing: "border-box", fontFamily: "'Tajawal',sans-serif" }}
+              />
+              <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", fontSize: 14, pointerEvents: "none" }}>🔍</span>
             </div>
 
-            {showFilters && (
-              <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E2E8F0", boxShadow: shadow.sm, padding: "20px", marginBottom: 24, display: "grid", gap: 18 }}>
+            <button onClick={() => setDrawerOpen(true)} className="cat-filter-btn"
+              style={{ padding: "9px 14px", borderRadius: 10, border: `1.5px solid ${activeChips.length ? "#6366F1" : "#E2E8F0"}`, background: activeChips.length ? "#EEF2FF" : "#F8FAFC", color: activeChips.length ? "#6366F1" : "#334155", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif", alignItems: "center", gap: 6 }}>
+              🎛️ {t("f_filters")} {activeChips.length > 0 && <span style={{ background: "#6366F1", color: "#fff", borderRadius: 999, padding: "1px 7px", fontSize: 11 }}>{activeChips.length}</span>}
+            </button>
 
-                {/* السعر */}
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 14, color: "#0F172A", marginBottom: 10 }}>💰 السعر (درهم)</div>
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                    <input type="number" placeholder={`من ${priceRange.min}`} value={priceMin} onChange={e => setPriceMin(e.target.value)}
-                      style={{ width: 110, padding: "8px 12px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 13, fontFamily: "'Tajawal',sans-serif", outline: "none" }} />
-                    <span style={{ color: "#94A3B8" }}>—</span>
-                    <input type="number" placeholder={`إلى ${priceRange.max}`} value={priceMax} onChange={e => setPriceMax(e.target.value)}
-                      style={{ width: 110, padding: "8px 12px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 13, fontFamily: "'Tajawal',sans-serif", outline: "none" }} />
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {[{ l: "تحت 50", min: "", max: 50 }, { l: "50 - 150", min: 50, max: 150 }, { l: "150 - 500", min: 150, max: 500 }, { l: "فوق 500", min: 500, max: "" }].map((x) => (
-                        <button key={x.l} onClick={() => { setPriceMin(String(x.min)); setPriceMax(String(x.max)); }}
-                          style={{ background: "#F1F5F9", color: "#334155", border: "none", borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
-                          {x.l}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+            <div style={{ color: "#64748B", fontSize: 13, fontWeight: 700 }}>
+              <strong style={{ color: "#0F172A" }}>{filtered.length}</strong> {t("f_results_count")}
+            </div>
 
-                {/* الماركة */}
-                {brands.length > 0 && (
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: 14, color: "#0F172A", marginBottom: 10 }}>🏷️ الماركة</div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <button onClick={() => setBrand("")}
-                        style={{ background: !brand ? "#6366F1" : "#F1F5F9", color: !brand ? "#fff" : "#334155", border: "none", borderRadius: 999, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
-                        الكل
-                      </button>
-                      {brands.map((b) => (
-                        <button key={b} onClick={() => setBrand(brand === b ? "" : b)}
-                          style={{ background: brand === b ? "#6366F1" : "#F1F5F9", color: brand === b ? "#fff" : "#334155", border: "none", borderRadius: 999, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
-                          {b}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+            <select value={sort} onChange={e => setSort(e.target.value)}
+              style={{ padding: "9px 12px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 13, background: "#F8FAFC", color: "#334155", fontWeight: 700, fontFamily: "'Tajawal',sans-serif", cursor: "pointer", outline: "none" }}>
+              <option value="default">{t("cat_sort_new")}</option>
+              <option value="bestselling">{t("cat_sort_bestselling")}</option>
+              <option value="price-asc">{t("cat_sort_price_asc")}</option>
+              <option value="price-desc">{t("cat_sort_price_desc")}</option>
+              <option value="rating">⭐ {lang === "ar" ? "الأعلى تقييماً" : "Top Rated"}</option>
+              <option value="discount">{t("cat_sort_discount")}</option>
+            </select>
+          </div>
+        )}
 
-                {/* اللون */}
-                {colors.length > 0 && (
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: 14, color: "#0F172A", marginBottom: 10 }}>🎨 اللون</div>
-                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      {colors.map((c) => (
-                        <button key={c.label} onClick={() => setColorFilter(colorFilter === c.label ? "" : c.label)}
-                          title={c.label}
-                          style={{ display: "flex", alignItems: "center", gap: 6, background: colorFilter === c.label ? "#EEF2FF" : "#fff", border: `2px solid ${colorFilter === c.label ? "#6366F1" : "#E2E8F0"}`, borderRadius: 999, padding: "4px 10px 4px 4px", cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
-                          <span style={{ display: "inline-block", width: 22, height: 22, borderRadius: "50%", background: c.hex, border: "1.5px solid #fff", boxShadow: "0 0 0 1px #E2E8F0" }} />
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#334155" }}>{c.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+        {/* رقائق الفلاتر المفعّلة */}
+        {activeChips.length > 0 && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14, alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: "#64748B", fontWeight: 700 }}>{activeChips.length} {t("f_active")}:</span>
+            {activeChips.map(c => (
+              <button key={c.key} onClick={c.clear} style={{
+                background: "#EEF2FF", color: "#6366F1", border: "1px solid #C7D2FE", borderRadius: 999,
+                padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "'Tajawal',sans-serif",
+                display: "inline-flex", alignItems: "center", gap: 5,
+              }}>
+                {c.label}
+                <span style={{ fontSize: 13, lineHeight: 1 }}>×</span>
+              </button>
+            ))}
+            <button onClick={clearAll} style={{
+              background: "transparent", color: "#EF4444", border: "none", fontSize: 12, fontWeight: 800,
+              cursor: "pointer", fontFamily: "'Tajawal',sans-serif", padding: "4px 8px",
+            }}>
+              🧹 {t("f_clear_all")}
+            </button>
+          </div>
+        )}
 
-                {/* المقاس */}
-                {sizes.length > 0 && (
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: 14, color: "#0F172A", marginBottom: 10 }}>📏 المقاس</div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      {sizes.map((s) => (
-                        <button key={s} onClick={() => setSizeFilter(sizeFilter === s ? "" : s)}
-                          style={{ minWidth: 46, background: sizeFilter === s ? "#6366F1" : "#fff", color: sizeFilter === s ? "#fff" : "#334155", border: `1.5px solid ${sizeFilter === s ? "#6366F1" : "#E2E8F0"}`, borderRadius: 10, padding: "7px 12px", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+        <div className="cat-body">
+          {/* الشريط الجانبي (ديسكتوب) */}
+          <aside className="cat-sidebar" style={{
+            background: "#fff", borderRadius: 16, border: "1px solid #E2E8F0",
+            boxShadow: shadow.sm, padding: "16px 18px",
+          }}>
+            {SidebarContent}
+          </aside>
 
-                {/* التقييم */}
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 14, color: "#0F172A", marginBottom: 10 }}>⭐ التقييم الأدنى</div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {[0, 3, 4, 4.5].map((v) => (
-                      <button key={v} onClick={() => setMinStars(v)}
-                        style={{ background: minStars === v ? "#FFFBEB" : "#fff", border: `1.5px solid ${minStars === v ? "#F59E0B" : "#E2E8F0"}`, borderRadius: 999, padding: "5px 12px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Tajawal',sans-serif", color: minStars === v ? "#B45309" : "#334155" }}>
-                        {v === 0 ? "الكل" : `★ ${v}+`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {activeFilterCount > 0 && (
-                  <button onClick={clearFilters}
-                    style={{ background: "#FEF2F2", color: "#EF4444", border: "1.5px solid #FECACA", borderRadius: 10, padding: "8px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif", width: "fit-content" }}>
-                    🧹 مسح كل الفلاتر ({activeFilterCount})
+          {/* المنتجات */}
+          <div>
+            {filtered.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "80px 20px", background: "#fff", borderRadius: 24, border: "2px dashed #E2E8F0" }}>
+                <div style={{ fontSize: 56, marginBottom: 14 }}>📦</div>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0F172A", marginBottom: 8 }}>
+                  {search || activeChips.length ? (lang === "ar" ? "لا توجد نتائج" : "No results") : (lang === "ar" ? "لا توجد منتجات" : "No products yet")}
+                </h3>
+                <p style={{ color: "#94A3B8", marginBottom: 24 }}>
+                  {search || activeChips.length ? (lang === "ar" ? "جرّب تعديل الفلاتر" : "Try adjusting filters") : (lang === "ar" ? "عد لاحقاً" : "Check back later")}
+                </p>
+                {activeChips.length > 0 ? (
+                  <button onClick={clearAll} style={{
+                    background: "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", border: "none", borderRadius: 12,
+                    padding: "11px 22px", fontWeight: 800, fontFamily: "'Tajawal',sans-serif", cursor: "pointer",
+                    boxShadow: "0 6px 18px rgba(99,102,241,.35)",
+                  }}>
+                    🧹 {t("f_clear_all")}
                   </button>
+                ) : (
+                  <Link to="/home" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", borderRadius: 12, padding: "11px 22px", fontWeight: 700, boxShadow: "0 6px 18px rgba(99,102,241,.35)" }}>
+                    ← {lang === "ar" ? "الأقسام" : "Categories"}
+                  </Link>
                 )}
               </div>
-            )}
-          </>
-        )}
+            ) : (
+              <div className="cat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 18 }}>
+                {filtered.map((p, idx) => {
+                  const price = Number(p.price), old = Number(p.oldPrice);
+                  const pct = (Number.isFinite(old) && old > price) ? Math.round(100 - (price / old) * 100) : null;
+                  const stock = Number.isFinite(Number(p.stock)) ? Number(p.stock) : null;
+                  const timer = countdown(p.saleEnd);
+                  const soldOut = stock === 0;
 
-        {filtered.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "80px 20px", background: "#fff", borderRadius: 24, border: "2px dashed #E2E8F0" }}>
-            <div style={{ fontSize: 56, marginBottom: 14 }}>📦</div>
-            <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0F172A", marginBottom: 8 }}>
-              {search ? "لا توجد نتائج" : "لا توجد منتجات في هذا القسم"}
-            </h3>
-            <p style={{ color: "#94A3B8", marginBottom: 24 }}>{search ? "جرّب كلمة بحث مختلفة" : "عد لاحقاً أو تصفح أقساماً أخرى"}</p>
-            <Link to="/home" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", borderRadius: 12, padding: "11px 22px", fontWeight: 700, boxShadow: "0 6px 18px rgba(99,102,241,.35)" }}>
-              ← الأقسام
-            </Link>
-          </div>
-        ) : (
-          <div className="cat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 20 }}>
-            {filtered.map((p, idx) => {
-              const price = Number(p.price), old = Number(p.oldPrice);
-              const pct = (Number.isFinite(old) && old > price) ? Math.round(100 - (price / old) * 100) : null;
-              const stock = Number.isFinite(p.stock) ? p.stock : null;
-              const timer = countdown(p.saleEnd);
-              const soldOut = stock === 0;
+                  return (
+                    <article key={p.id} className="prod-card"
+                      style={{ background: "#fff", borderRadius: 20, border: "1px solid #F1F5F9", boxShadow: shadow.sm, overflow: "hidden", animation: `fadeUp .4s ${idx * 0.03}s both` }}>
 
-              return (
-                <article key={p.id} className="prod-card"
-                  style={{ background: "#fff", borderRadius: 20, border: "1px solid #F1F5F9", boxShadow: shadow.sm, overflow: "hidden", animation: `fadeUp .4s ${idx * 0.04}s both` }}>
-
-                  <Link to={`/product/${p.id}`} style={{ display: "block", position: "relative" }}>
-                    <div style={{ position: "relative", overflow: "hidden", height: 200 }}>
-                      <img src={(p.image || "").trim() || "https://via.placeholder.com/400x300?text=صورة"}
-                        alt={prodName(p)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform .4s ease" }}
-                        onMouseOver={e => e.currentTarget.style.transform = "scale(1.06)"}
-                        onMouseOut={e => e.currentTarget.style.transform = "scale(1)"}
-                        onError={e => { e.currentTarget.src = "https://via.placeholder.com/400x300?text=صورة"; }} />
-                      {pct && (
-                        <span style={{ position: "absolute", top: 12, right: 12, background: "#EF4444", color: "#fff", borderRadius: 999, padding: "4px 10px", fontWeight: 800, fontSize: 12 }}>
-                          وفر {pct}%
-                        </span>
-                      )}
-                      {soldOut && (
-                        <div style={{ position: "absolute", inset: 0, background: "rgba(15,23,42,.55)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <span style={{ background: "#fff", color: "#0F172A", borderRadius: 10, padding: "8px 16px", fontWeight: 800, fontSize: 14 }}>نفد المخزون</span>
+                      <Link to={`/product/${p.id}`} style={{ display: "block", position: "relative" }}>
+                        <div style={{ position: "relative", overflow: "hidden", height: 190 }}>
+                          <img src={(p.image || "").trim() || "https://via.placeholder.com/400x300?text=صورة"}
+                            alt={prodName(p)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform .4s ease" }}
+                            onMouseOver={e => e.currentTarget.style.transform = "scale(1.06)"}
+                            onMouseOut={e => e.currentTarget.style.transform = "scale(1)"}
+                            onError={e => { e.currentTarget.src = "https://via.placeholder.com/400x300?text=صورة"; }} />
+                          {pct && (
+                            <span style={{ position: "absolute", top: 10, insetInlineEnd: 10, background: "#EF4444", color: "#fff", borderRadius: 999, padding: "3px 9px", fontWeight: 800, fontSize: 11 }}>
+                              -{pct}%
+                            </span>
+                          )}
+                          {p.featured && (
+                            <span style={{ position: "absolute", top: 10, insetInlineStart: 10, background: "#F59E0B", color: "#fff", borderRadius: 999, padding: "3px 9px", fontWeight: 800, fontSize: 11 }}>
+                              ⭐ {lang === "ar" ? "مميّز" : "Featured"}
+                            </span>
+                          )}
+                          {soldOut && (
+                            <div style={{ position: "absolute", inset: 0, background: "rgba(15,23,42,.55)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <span style={{ background: "#fff", color: "#0F172A", borderRadius: 10, padding: "7px 14px", fontWeight: 800, fontSize: 13 }}>{t("prod_sold_out")}</span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </Link>
+                      </Link>
 
-                  <div style={{ padding: "16px" }}>
-                    {p.brand && <div style={{ fontSize: 11, fontWeight: 700, color: "#16A34A", marginBottom: 4 }}>🏷️ {p.brand}</div>}
-                    <Link to={`/product/${p.id}`} style={{ display: "block", fontWeight: 800, fontSize: 15, color: "#0F172A", marginBottom: 8, lineHeight: 1.4 }}>{prodName(p)}</Link>
+                      <div style={{ padding: "14px" }}>
+                        {p.brand && <div style={{ fontSize: 10, fontWeight: 700, color: "#16A34A", marginBottom: 4, textTransform: "uppercase" }}>{p.brand}</div>}
+                        <Link to={`/product/${p.id}`} style={{ display: "block", fontWeight: 800, fontSize: 14, color: "#0F172A", marginBottom: 6, lineHeight: 1.4 }}>{prodName(p)}</Link>
 
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                      <span style={{ fontWeight: 900, fontSize: 18, color: "#6366F1" }}>{fmtPrice(price)}</span>
-                      {pct && <span style={{ textDecoration: "line-through", fontSize: 13, color: "#94A3B8" }}>{fmtPrice(old)}</span>}
-                    </div>
-                    {productRatingCount(p.id) > 0 && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 8, fontSize: 12, color: "#F59E0B", fontWeight: 700 }}>
-                        <span>★ {productStars(p.id).toFixed(1)}</span>
-                        <span style={{ color: "#94A3B8", fontWeight: 600 }}>({productRatingCount(p.id)})</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                          <span style={{ fontWeight: 900, fontSize: 16, color: "#6366F1" }}>{fmtPrice(price)}</span>
+                          {pct && <span style={{ textDecoration: "line-through", fontSize: 12, color: "#94A3B8" }}>{fmtPrice(old)}</span>}
+                        </div>
+                        {productRatingCount(p.id) > 0 && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 6, fontSize: 11, color: "#F59E0B", fontWeight: 700 }}>
+                            <span>★ {productStars(p.id).toFixed(1)}</span>
+                            <span style={{ color: "#94A3B8", fontWeight: 600 }}>({productRatingCount(p.id)})</span>
+                          </div>
+                        )}
+
+                        {stock !== null && stock > 0 && stock <= (p.lowStockThreshold || 5) && (
+                          <div style={{ fontSize: 11, color: "#F59E0B", fontWeight: 700, marginBottom: 6 }}>🔥 {lang === "ar" ? `بقي ${stock}` : `Only ${stock} left`}</div>
+                        )}
+                        {timer && <div style={{ fontSize: 11, color: "#EC4899", fontWeight: 700, marginBottom: 6 }}>⏰ {timer}</div>}
+
+                        <Link to={`/product/${p.id}`}
+                          style={{ display: "block", background: soldOut ? "#F1F5F9" : "linear-gradient(135deg,#6366F1,#8B5CF6)", color: soldOut ? "#94A3B8" : "#fff", borderRadius: 10, padding: "9px", textAlign: "center", fontWeight: 700, fontSize: 13, boxShadow: soldOut ? "none" : "0 4px 14px rgba(99,102,241,.35)" }}>
+                          {soldOut ? t("prod_unavailable") : (lang === "ar" ? "عرض التفاصيل ←" : "View Details →")}
+                        </Link>
                       </div>
-                    )}
-
-                    {stock !== null && stock > 0 && stock <= (p.lowStockThreshold || 5) && (
-                      <div style={{ fontSize: 12, color: "#F59E0B", fontWeight: 700, marginBottom: 8 }}>🔥 بقي {stock} فقط!</div>
-                    )}
-                    {timer && <div style={{ fontSize: 12, color: "#EC4899", fontWeight: 700, marginBottom: 8 }}>⏰ ينتهي العرض: {timer}</div>}
-
-                    <Link to={`/product/${p.id}`}
-                      style={{ display: "block", background: soldOut ? "#F1F5F9" : "linear-gradient(135deg,#6366F1,#8B5CF6)", color: soldOut ? "#94A3B8" : "#fff", borderRadius: 10, padding: "10px", textAlign: "center", fontWeight: 700, fontSize: 14, boxShadow: soldOut ? "none" : "0 4px 14px rgba(99,102,241,.35)", transition: "opacity .15s" }}>
-                      {soldOut ? "غير متاح" : "عرض التفاصيل ←"}
-                    </Link>
-                  </div>
-                </article>
-              );
-            })}
+                    </article>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </main>
+
+      {/* درج الجوال */}
+      {drawerOpen && (
+        <>
+          <div onClick={() => setDrawerOpen(false)} style={{
+            position: "fixed", inset: 0, background: "rgba(15,23,42,.55)", zIndex: 998,
+          }} />
+          <div style={{
+            position: "fixed", top: 0, insetInlineEnd: 0, bottom: 0, width: "min(340px, 90vw)",
+            background: "#fff", zIndex: 999, animation: "slideIn .25s ease", overflowY: "auto",
+            boxShadow: "-12px 0 32px rgba(0,0,0,.18)", padding: "16px 18px",
+            direction: lang === "ar" ? "rtl" : "ltr",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ fontSize: 12, color: "#64748B", fontWeight: 700 }}>
+                {filtered.length} {t("f_results_count")}
+              </span>
+              <button onClick={() => setDrawerOpen(false)} style={{
+                background: "#F1F5F9", border: "none", borderRadius: 999, width: 32, height: 32,
+                fontSize: 18, cursor: "pointer", color: "#334155", fontWeight: 800,
+              }}>
+                ×
+              </button>
+            </div>
+            {SidebarContent}
+            <button onClick={() => setDrawerOpen(false)} style={{
+              position: "sticky", bottom: 0, marginTop: 18, width: "100%",
+              background: "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", border: "none",
+              borderRadius: 12, padding: "12px", fontWeight: 800, fontSize: 14, cursor: "pointer",
+              fontFamily: "'Tajawal',sans-serif", boxShadow: "0 8px 20px rgba(99,102,241,.35)",
+            }}>
+              ✓ {t("f_apply")} ({filtered.length})
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
