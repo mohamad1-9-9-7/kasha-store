@@ -128,7 +128,7 @@ router.post("/bulk", requireAdmin, async (req, res) => {
         supplierCategory: rawCategory && targetCategory && rawCategory !== targetCategory ? rawCategory : undefined,
         featured: markFeatured || !!p.featured,
         brand: p.brand ? String(p.brand).trim() : "",
-        stock: p.stock !== undefined && p.stock !== "" ? parseInt(p.stock) : 0,
+        stock: Math.max(1, parseInt(p.stock) || 1),
         weight: p.weight !== undefined && p.weight !== "" ? Number(p.weight) : undefined,
         packageWeight: p.packageWeight !== undefined && p.packageWeight !== "" ? Number(p.packageWeight) : undefined,
         volumetricWeight: p.volumetricWeight !== undefined && p.volumetricWeight !== "" ? Number(p.volumetricWeight) : undefined,
