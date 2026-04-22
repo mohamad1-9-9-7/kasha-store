@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { C, shadow, r, slugify, fmt, fmtPrice, catName, prodName } from "../Theme";
 import MiniNav from "../components/MiniNav";
@@ -7,6 +7,15 @@ import { T } from "../i18n";
 import { useCategories } from "../hooks/useCategories";
 import { useProducts } from "../hooks/useProducts";
 import { useRatingsSummary } from "../hooks/useRatings";
+import { useWishlist } from "../context/WishlistContext";
+import { CartContext } from "../context/CartContext";
+import { useToast } from "../context/ToastContext";
+import { ProductSkeleton } from "../components/Skeleton";
+import QuickView from "../components/QuickView";
+import DualRangeSlider from "../components/DualRangeSlider";
+import { getRecentlyViewed, addRecentlyViewed } from "../utils/recentlyViewed";
+
+const PAGE_SIZE = 24;
 
 const FREE_SHIP_THRESHOLD = 200;
 const NEW_DAYS = 30;
@@ -136,8 +145,26 @@ export default function CategoryPage() {
   const [minDiscount, setMinDiscount] = useState(Number(searchParams.get("disc") || 0));
 
   const { categories } = useCategories();
-  const { products: allProds } = useProducts();
+  const { products: allProds, loading: loadingProds } = useProducts();
   const ratingsSummary = useRatingsSummary();
+  const { isWishlisted, toggle: toggleWish } = useWishlist() || { isWishlisted: () => false, toggle: () => {} };
+  const { addToCart } = useContext(CartContext) || { addToCart: () => {} };
+  const toast = useToast();
+  const [showTop, setShowTop] = useState(false);
+  const [quickViewProd, setQuickViewProd] = useState(null);
+  const [viewMode, setViewMode] = useState(searchParams.get("view") || "grid"); // "grid" | "list"
+  const [gridCols, setGridCols] = useState(Number(searchParams.get("cols") || 0)); // 0=auto, 2, 3, 4
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [recentlyViewed, setRecentlyViewed] = useState([]);
+
+  useEffect(() => { setRecentlyViewed(getRecentlyViewed()); }, [quickViewProd]);
+
+  const openQuickView = (p) => {
+    setQuickViewProd(p);
+    addRecentlyViewed(p);
+  };
+
+  const trackView = (p) => addRecentlyViewed(p);
 
   const categoryName = useMemo(() => {
     const catObj = categories.map(c => typeof c === "string" ? { name: c } : c).find(c => slugify(c?.name) === categoryId);
@@ -310,13 +337,51 @@ export default function CategoryPage() {
     if (freeShip) p.ship = "1";
     if (bestsellers) p.best = "1";
     if (minDiscount) p.disc = minDiscount;
+    if (viewMode !== "grid") p.view = viewMode;
+    if (gridCols) p.cols = gridCols;
     setSearchParams(p, { replace: true });
-  }, [search, sort, priceMin, priceMax, minStars, brands, colors, sizes, ages, genders, materials, availability, onSale, newArrivals, freeShip, bestsellers, minDiscount]);
+  }, [search, sort, priceMin, priceMax, minStars, brands, colors, sizes, ages, genders, materials, availability, onSale, newArrivals, freeShip, bestsellers, minDiscount, viewMode, gridCols]);
 
   useEffect(() => {
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > 500);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // إعادة تعيين المعروض عند تغيير الفلاتر
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [search, sort, brands, colors, sizes, ages, genders, materials, priceMin, priceMax, minStars, availability, onSale, newArrivals, freeShip, bestsellers, minDiscount]);
+
+  const handleQuickAdd = (e, p) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const stock = Number(p.stock);
+    if (Number.isFinite(stock) && stock <= 0) {
+      toast?.(lang === "ar" ? "نفد المخزون" : "Out of stock", "error");
+      return;
+    }
+    if ((p.variants || []).length > 0) {
+      navigate(`/product/${p.id}`);
+      return;
+    }
+    addToCart(p, 1);
+    toast?.(lang === "ar" ? "✅ أُضيف للسلة" : "✅ Added to cart", "success");
+  };
+
+  const handleWishToggle = (e, p) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleWish(p);
+    const nowWish = !isWishlisted(p.id);
+    toast?.(
+      nowWish ? (lang === "ar" ? "❤️ أُضيف للمفضلة" : "❤️ Added to wishlist") : (lang === "ar" ? "أُزيل من المفضلة" : "Removed"),
+      nowWish ? "success" : "info"
+    );
+  };
 
   const countdown = (endIso) => {
     if (!endIso) return null;
@@ -362,12 +427,24 @@ export default function CategoryPage() {
   /* ═══════════ الشريط الجانبي (نفس المحتوى للديسكتوب والدراوَر) ═══════════ */
   const SidebarContent = (
     <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 10, borderBottom: "2px solid #F1F5F9" }}>
-        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "#0F172A" }}>{t("f_filters")}</h3>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        paddingBottom: 10, borderBottom: "2px solid #F1F5F9",
+        position: "sticky", top: -16, background: "#fff", zIndex: 5, marginInline: -18, marginTop: -16,
+        padding: "16px 18px 10px", borderTopLeftRadius: 16, borderTopRightRadius: 16,
+      }}>
+        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "#0F172A" }}>
+          {t("f_filters")}
+          {activeChips.length > 0 && (
+            <span style={{ marginInlineStart: 8, background: "#6366F1", color: "#fff", borderRadius: 999, padding: "2px 9px", fontSize: 11, fontWeight: 800 }}>
+              {activeChips.length}
+            </span>
+          )}
+        </h3>
         {activeChips.length > 0 && (
           <button onClick={clearAll} style={{
-            background: "transparent", border: "none", color: "#EF4444", fontSize: 12, fontWeight: 800,
-            cursor: "pointer", fontFamily: "'Tajawal',sans-serif",
+            background: "#FEF2F2", border: "1px solid #FECACA", color: "#EF4444", fontSize: 11, fontWeight: 800,
+            cursor: "pointer", fontFamily: "'Tajawal',sans-serif", borderRadius: 999, padding: "4px 10px",
           }}>
             🧹 {t("f_clear_all")}
           </button>
@@ -401,12 +478,22 @@ export default function CategoryPage() {
 
       {/* السعر */}
       <Section title={t("f_price")} icon="💰">
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
-          <input type="number" placeholder={`${t("f_price_from")} ${facets.priceRange.min}`} value={priceMin} onChange={e => setPriceMin(e.target.value)}
-            style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12, fontFamily: "'Tajawal',sans-serif", outline: "none", background: "#F8FAFC", minWidth: 0, boxSizing: "border-box" }} />
+        <DualRangeSlider
+          min={facets.priceRange.min}
+          max={facets.priceRange.max}
+          valueMin={priceMin === "" ? facets.priceRange.min : Number(priceMin)}
+          valueMax={priceMax === "" ? facets.priceRange.max : Number(priceMax)}
+          onChange={(lo, hi) => {
+            setPriceMin(lo === facets.priceRange.min ? "" : String(lo));
+            setPriceMax(hi === facets.priceRange.max ? "" : String(hi));
+          }}
+        />
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, marginBottom: 8 }}>
+          <input type="number" placeholder={`${t("f_price_from")}`} value={priceMin} onChange={e => setPriceMin(e.target.value)}
+            style={{ flex: 1, padding: "6px 8px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 11, fontFamily: "'Tajawal',sans-serif", outline: "none", background: "#F8FAFC", minWidth: 0, boxSizing: "border-box" }} />
           <span style={{ color: "#94A3B8" }}>—</span>
-          <input type="number" placeholder={`${t("f_price_to")} ${facets.priceRange.max}`} value={priceMax} onChange={e => setPriceMax(e.target.value)}
-            style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12, fontFamily: "'Tajawal',sans-serif", outline: "none", background: "#F8FAFC", minWidth: 0, boxSizing: "border-box" }} />
+          <input type="number" placeholder={`${t("f_price_to")}`} value={priceMax} onChange={e => setPriceMax(e.target.value)}
+            style={{ flex: 1, padding: "6px 8px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 11, fontFamily: "'Tajawal',sans-serif", outline: "none", background: "#F8FAFC", minWidth: 0, boxSizing: "border-box" }} />
         </div>
         <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
           {[{ l: "< 50", min: "", max: 50 }, { l: "50-150", min: 50, max: 150 }, { l: "150-500", min: 150, max: 500 }, { l: "> 500", min: 500, max: "" }].map((x) => (
@@ -555,8 +642,35 @@ export default function CategoryPage() {
       <style>{`
         @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
         @keyframes slideIn { from{transform:translateX(100%)} to{transform:translateX(0)} }
+        @keyframes pulse-scale { 0%{transform:scale(1)} 50%{transform:scale(1.08)} 100%{transform:scale(1)} }
         .prod-card { transition: transform .22s ease, box-shadow .22s ease; }
         .prod-card:hover { transform: translateY(-6px); box-shadow: 0 20px 44px rgba(0,0,0,.12)!important; }
+        .prod-card:hover .prod-img-main { opacity: 0; }
+        .prod-card:hover .prod-img-hover { opacity: 1; }
+        .prod-card:not(:has(.prod-img-hover)):hover .prod-img-main { opacity: 1; transform: scale(1.06); }
+        .skeleton { background: linear-gradient(90deg,#F1F5F9 0%,#E2E8F0 50%,#F1F5F9 100%); background-size: 200% 100%; animation: shim 1.3s ease infinite; }
+        @keyframes shim { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        .scroll-top-btn:hover { transform: translateY(-3px) scale(1.05); }
+
+        /* عرض القائمة */
+        .cat-grid.list-mode .prod-card {
+          display: grid;
+          grid-template-columns: 180px 1fr;
+          align-items: stretch;
+        }
+        .cat-grid.list-mode .prod-card .prod-img-wrap {
+          height: 100% !important;
+          min-height: 160px;
+        }
+        .cat-grid.list-mode .prod-card > div:last-child {
+          padding: 16px 20px !important;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+        }
+        @media(max-width:600px){
+          .cat-grid.list-mode .prod-card { grid-template-columns: 120px 1fr; }
+        }
         .cat-body { display:grid; grid-template-columns: 260px 1fr; gap: 24px; align-items: start; }
         .cat-sidebar { position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto; }
         .cat-filter-btn { display: none; }
@@ -579,6 +693,21 @@ export default function CategoryPage() {
       `}</style>
 
       <MiniNav title={categoryName} backTo="/home" />
+
+      {/* فتات الخبز Breadcrumbs */}
+      <div style={{ background: "#fff", borderBottom: "1px solid #F1F5F9", padding: "10px 20px" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", fontSize: 12, color: "#64748B", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <Link to="/home" style={{ color: "#6366F1", textDecoration: "none", fontWeight: 700 }}>
+            {lang === "ar" ? "🏠 الرئيسية" : "🏠 Home"}
+          </Link>
+          <span style={{ color: "#CBD5E1" }}>{lang === "ar" ? "/" : "/"}</span>
+          <Link to="/home" style={{ color: "#6366F1", textDecoration: "none", fontWeight: 700 }}>
+            {lang === "ar" ? "الأقسام" : "Categories"}
+          </Link>
+          <span style={{ color: "#CBD5E1" }}>/</span>
+          <span style={{ color: "#0F172A", fontWeight: 800 }}>{categoryName}</span>
+        </div>
+      </div>
 
       {/* هيدر القسم */}
       <div className="cat-header" style={{ background: "linear-gradient(135deg,#0F172A,#1E1B4B)", padding: "36px 24px", color: "#fff" }}>
@@ -626,6 +755,30 @@ export default function CategoryPage() {
               <option value="rating">⭐ {lang === "ar" ? "الأعلى تقييماً" : "Top Rated"}</option>
               <option value="discount">{t("cat_sort_discount")}</option>
             </select>
+
+            {/* تبديل العرض */}
+            <div style={{ display: "inline-flex", background: "#F1F5F9", borderRadius: 10, padding: 3, gap: 2 }}>
+              <button onClick={() => setViewMode("grid")} title={lang === "ar" ? "شبكة" : "Grid"}
+                style={{ padding: "6px 10px", borderRadius: 8, border: "none", background: viewMode === "grid" ? "#fff" : "transparent", color: viewMode === "grid" ? "#6366F1" : "#64748B", cursor: "pointer", fontSize: 14, fontWeight: 800, boxShadow: viewMode === "grid" ? shadow.sm : "none" }}>
+                ▦
+              </button>
+              <button onClick={() => setViewMode("list")} title={lang === "ar" ? "قائمة" : "List"}
+                style={{ padding: "6px 10px", borderRadius: 8, border: "none", background: viewMode === "list" ? "#fff" : "transparent", color: viewMode === "list" ? "#6366F1" : "#64748B", cursor: "pointer", fontSize: 14, fontWeight: 800, boxShadow: viewMode === "list" ? shadow.sm : "none" }}>
+                ☰
+              </button>
+            </div>
+
+            {/* كثافة الشبكة */}
+            {viewMode === "grid" && (
+              <div className="cat-density" style={{ display: "inline-flex", background: "#F1F5F9", borderRadius: 10, padding: 3, gap: 2 }}>
+                {[{ n: 2, l: "2" }, { n: 3, l: "3" }, { n: 4, l: "4" }].map(x => (
+                  <button key={x.n} onClick={() => setGridCols(gridCols === x.n ? 0 : x.n)} title={`${x.n} cols`}
+                    style={{ padding: "6px 10px", borderRadius: 8, border: "none", background: gridCols === x.n ? "#fff" : "transparent", color: gridCols === x.n ? "#6366F1" : "#64748B", cursor: "pointer", fontSize: 12, fontWeight: 800, boxShadow: gridCols === x.n ? shadow.sm : "none" }}>
+                    {x.l}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -663,7 +816,11 @@ export default function CategoryPage() {
 
           {/* المنتجات */}
           <div>
-            {filtered.length === 0 ? (
+            {loadingProds ? (
+              <div className="cat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 18 }}>
+                {[1,2,3,4,5,6,7,8].map(i => <ProductSkeleton key={i} />)}
+              </div>
+            ) : filtered.length === 0 ? (
               <div style={{ textAlign: "center", padding: "80px 20px", background: "#fff", borderRadius: 24, border: "2px dashed #E2E8F0" }}>
                 <div style={{ fontSize: 56, marginBottom: 14 }}>📦</div>
                 <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0F172A", marginBottom: 8 }}>
@@ -687,35 +844,69 @@ export default function CategoryPage() {
                 )}
               </div>
             ) : (
-              <div className="cat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 18 }}>
-                {filtered.map((p, idx) => {
+              <>
+              <div className={`cat-grid${viewMode === "list" ? " list-mode" : ""}`} style={{
+                display: "grid",
+                gridTemplateColumns: viewMode === "list" ? "1fr" : (gridCols > 0 ? `repeat(${gridCols}, 1fr)` : "repeat(auto-fill, minmax(220px, 1fr))"),
+                gap: viewMode === "list" ? 12 : 18,
+              }}>
+                {filtered.slice(0, visibleCount).map((p, idx) => {
                   const price = Number(p.price), old = Number(p.oldPrice);
                   const pct = (Number.isFinite(old) && old > price) ? Math.round(100 - (price / old) * 100) : null;
                   const stock = Number.isFinite(Number(p.stock)) ? Number(p.stock) : null;
                   const timer = countdown(p.saleEnd);
                   const soldOut = stock === 0;
+                  const low = stock !== null && stock > 0 && stock <= (p.lowStockThreshold || 5);
+                  const isNew = (() => {
+                    const c = p.createdAt ? new Date(p.createdAt).getTime() : 0;
+                    return c && Date.now() - c <= NEW_DAYS * 86400000;
+                  })();
+                  const imgs = [p.image, ...(Array.isArray(p.images) ? p.images.filter(x => x && x !== p.image) : [])].filter(Boolean);
+                  const mainImg = imgs[0] || "https://via.placeholder.com/400x300?text=صورة";
+                  const hoverImg = imgs[1];
+                  const wished = isWishlisted(p.id);
+                  const hasVariants = (p.variants || []).length > 0;
 
                   return (
                     <article key={p.id} className="prod-card"
-                      style={{ background: "#fff", borderRadius: 20, border: "1px solid #F1F5F9", boxShadow: shadow.sm, overflow: "hidden", animation: `fadeUp .4s ${idx * 0.03}s both` }}>
+                      style={{ background: "#fff", borderRadius: 20, border: "1px solid #F1F5F9", boxShadow: shadow.sm, overflow: "hidden", animation: `fadeUp .4s ${idx * 0.03}s both`, position: "relative" }}>
 
-                      <Link to={`/product/${p.id}`} style={{ display: "block", position: "relative" }}>
-                        <div style={{ position: "relative", overflow: "hidden", height: 190 }}>
-                          <img src={(p.image || "").trim() || "https://via.placeholder.com/400x300?text=صورة"}
-                            alt={prodName(p)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform .4s ease" }}
-                            onMouseOver={e => e.currentTarget.style.transform = "scale(1.06)"}
-                            onMouseOut={e => e.currentTarget.style.transform = "scale(1)"}
+                      <Link to={`/product/${p.id}`} onClick={() => trackView(p)} style={{ display: "block", position: "relative" }}>
+                        <div className="prod-img-wrap" style={{ position: "relative", overflow: "hidden", height: 200, background: "#F8FAFC" }}>
+                          <img src={mainImg}
+                            alt={prodName(p)} className="prod-img-main"
+                            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "opacity .3s ease, transform .4s ease" }}
                             onError={e => { e.currentTarget.src = "https://via.placeholder.com/400x300?text=صورة"; }} />
-                          {pct && (
-                            <span style={{ position: "absolute", top: 10, insetInlineEnd: 10, background: "#EF4444", color: "#fff", borderRadius: 999, padding: "3px 9px", fontWeight: 800, fontSize: 11 }}>
-                              -{pct}%
-                            </span>
+                          {hoverImg && (
+                            <img src={hoverImg} alt="" className="prod-img-hover"
+                              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0, transition: "opacity .3s ease" }}
+                              onError={e => { e.currentTarget.style.display = "none"; }} />
                           )}
-                          {p.featured && (
-                            <span style={{ position: "absolute", top: 10, insetInlineStart: 10, background: "#F59E0B", color: "#fff", borderRadius: 999, padding: "3px 9px", fontWeight: 800, fontSize: 11 }}>
-                              ⭐ {lang === "ar" ? "مميّز" : "Featured"}
-                            </span>
-                          )}
+
+                          {/* شارات متراكمة */}
+                          <div style={{ position: "absolute", top: 8, insetInlineEnd: 8, display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                            {pct && <span style={{ background: "#EF4444", color: "#fff", borderRadius: 999, padding: "3px 9px", fontWeight: 800, fontSize: 11 }}>-{pct}%</span>}
+                            {isNew && <span style={{ background: "#10B981", color: "#fff", borderRadius: 999, padding: "3px 9px", fontWeight: 800, fontSize: 11 }}>✨ {t("f_new_arrivals")}</span>}
+                            {low && <span style={{ background: "#F59E0B", color: "#fff", borderRadius: 999, padding: "3px 9px", fontWeight: 800, fontSize: 11 }}>🔥 {lang === "ar" ? `بقي ${stock}` : `${stock} left`}</span>}
+                          </div>
+                          <div style={{ position: "absolute", top: 8, insetInlineStart: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+                            {p.featured && <span style={{ background: "#F59E0B", color: "#fff", borderRadius: 999, padding: "3px 9px", fontWeight: 800, fontSize: 11 }}>⭐ {lang === "ar" ? "مميّز" : "Featured"}</span>}
+                          </div>
+
+                          {/* زر القلب */}
+                          <button onClick={e => handleWishToggle(e, p)} title={lang === "ar" ? "المفضلة" : "Wishlist"}
+                            style={{
+                              position: "absolute", bottom: 8, insetInlineEnd: 8, width: 34, height: 34, borderRadius: "50%",
+                              background: wished ? "#EF4444" : "rgba(255,255,255,.92)", border: "none", cursor: "pointer",
+                              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
+                              boxShadow: "0 4px 12px rgba(0,0,0,.15)", transition: "transform .15s, background .15s",
+                            }}
+                            onMouseDown={e => e.currentTarget.style.transform = "scale(.85)"}
+                            onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
+                          >
+                            <span style={{ filter: wished ? "none" : "grayscale(.3)" }}>{wished ? "❤️" : "🤍"}</span>
+                          </button>
+
                           {soldOut && (
                             <div style={{ position: "absolute", inset: 0, background: "rgba(15,23,42,.55)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                               <span style={{ background: "#fff", color: "#0F172A", borderRadius: 10, padding: "7px 14px", fontWeight: 800, fontSize: 13 }}>{t("prod_sold_out")}</span>
@@ -726,7 +917,7 @@ export default function CategoryPage() {
 
                       <div style={{ padding: "14px" }}>
                         {p.brand && <div style={{ fontSize: 10, fontWeight: 700, color: "#16A34A", marginBottom: 4, textTransform: "uppercase" }}>{p.brand}</div>}
-                        <Link to={`/product/${p.id}`} style={{ display: "block", fontWeight: 800, fontSize: 14, color: "#0F172A", marginBottom: 6, lineHeight: 1.4 }}>{prodName(p)}</Link>
+                        <Link to={`/product/${p.id}`} style={{ display: "block", fontWeight: 800, fontSize: 14, color: "#0F172A", marginBottom: 6, lineHeight: 1.4, textDecoration: "none", minHeight: 38 }}>{prodName(p)}</Link>
 
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                           <span style={{ fontWeight: 900, fontSize: 16, color: "#6366F1" }}>{fmtPrice(price)}</span>
@@ -739,23 +930,109 @@ export default function CategoryPage() {
                           </div>
                         )}
 
-                        {stock !== null && stock > 0 && stock <= (p.lowStockThreshold || 5) && (
-                          <div style={{ fontSize: 11, color: "#F59E0B", fontWeight: 700, marginBottom: 6 }}>🔥 {lang === "ar" ? `بقي ${stock}` : `Only ${stock} left`}</div>
-                        )}
                         {timer && <div style={{ fontSize: 11, color: "#EC4899", fontWeight: 700, marginBottom: 6 }}>⏰ {timer}</div>}
 
-                        <Link to={`/product/${p.id}`}
-                          style={{ display: "block", background: soldOut ? "#F1F5F9" : "linear-gradient(135deg,#6366F1,#8B5CF6)", color: soldOut ? "#94A3B8" : "#fff", borderRadius: 10, padding: "9px", textAlign: "center", fontWeight: 700, fontSize: 13, boxShadow: soldOut ? "none" : "0 4px 14px rgba(99,102,241,.35)" }}>
-                          {soldOut ? t("prod_unavailable") : (lang === "ar" ? "عرض التفاصيل ←" : "View Details →")}
-                        </Link>
+                        {/* أزرار إجراء سريع */}
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button
+                            onClick={e => handleQuickAdd(e, p)}
+                            disabled={soldOut}
+                            title={hasVariants ? (lang === "ar" ? "اختر المقاس" : "Choose options") : (lang === "ar" ? "أضف للسلة" : "Add to cart")}
+                            style={{
+                              flex: 1, background: soldOut ? "#F1F5F9" : "linear-gradient(135deg,#6366F1,#8B5CF6)",
+                              color: soldOut ? "#94A3B8" : "#fff", border: "none", borderRadius: 10, padding: "9px",
+                              fontWeight: 800, fontSize: 12, cursor: soldOut ? "not-allowed" : "pointer",
+                              fontFamily: "'Tajawal',sans-serif",
+                              boxShadow: soldOut ? "none" : "0 4px 14px rgba(99,102,241,.35)",
+                            }}>
+                            {soldOut ? t("prod_unavailable") : (hasVariants ? `🎯 ${lang === "ar" ? "اختر" : "Options"}` : `🛒 ${lang === "ar" ? "أضف للسلة" : "Add"}`)}
+                          </button>
+                          <button onClick={e => { e.preventDefault(); e.stopPropagation(); openQuickView(p); }}
+                            title={lang === "ar" ? "نظرة سريعة" : "Quick View"}
+                            style={{
+                              background: "#F1F5F9", color: "#334155", border: "none", borderRadius: 10,
+                              padding: "9px 12px", fontWeight: 800, fontSize: 12, cursor: "pointer",
+                              display: "inline-flex", alignItems: "center",
+                            }}>
+                            👁️
+                          </button>
+                        </div>
                       </div>
                     </article>
                   );
                 })}
               </div>
+
+              {/* تحميل المزيد */}
+              {filtered.length > visibleCount && (
+                <div style={{ textAlign: "center", marginTop: 24 }}>
+                  <button onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
+                    style={{
+                      padding: "12px 28px", borderRadius: 12, border: "1.5px solid #6366F1",
+                      background: "#fff", color: "#6366F1", fontWeight: 800, fontSize: 14,
+                      cursor: "pointer", fontFamily: "'Tajawal',sans-serif",
+                      boxShadow: "0 6px 18px rgba(99,102,241,.15)",
+                    }}>
+                    ↓ {lang === "ar" ? `عرض المزيد (${filtered.length - visibleCount})` : `Load More (${filtered.length - visibleCount})`}
+                  </button>
+                  <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 8, fontWeight: 700 }}>
+                    {lang === "ar" ? `${Math.min(visibleCount, filtered.length)} من ${filtered.length}` : `${Math.min(visibleCount, filtered.length)} of ${filtered.length}`}
+                  </div>
+                </div>
+              )}
+              </>
             )}
           </div>
         </div>
+
+        {/* شوهد مؤخراً */}
+        {recentlyViewed.length > 0 && (
+          <section style={{ marginTop: 40, paddingTop: 24, borderTop: "1px solid #E2E8F0" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "#0F172A" }}>
+                👁️ {lang === "ar" ? "شوهد مؤخراً" : "Recently Viewed"}
+              </h3>
+              <span style={{ fontSize: 12, color: "#64748B", fontWeight: 700 }}>
+                {recentlyViewed.length} {lang === "ar" ? "منتج" : "items"}
+              </span>
+            </div>
+            <div style={{
+              display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8,
+              scrollbarWidth: "thin",
+            }}>
+              {recentlyViewed.map((p) => {
+                const price = Number(p.price), old = Number(p.oldPrice);
+                const pct = (Number.isFinite(old) && old > price) ? Math.round(100 - (price / old) * 100) : null;
+                return (
+                  <Link key={p.id} to={`/product/${p.id}`}
+                    style={{
+                      flexShrink: 0, width: 160, background: "#fff", borderRadius: 14,
+                      border: "1px solid #F1F5F9", overflow: "hidden", textDecoration: "none",
+                      boxShadow: shadow.sm, transition: "transform .2s",
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.transform = "translateY(-3px)"}
+                    onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
+                  >
+                    <div style={{ height: 120, overflow: "hidden", background: "#F8FAFC" }}>
+                      <img src={p.image || "https://via.placeholder.com/200"} alt={prodName(p)}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        onError={e => e.currentTarget.src = "https://via.placeholder.com/200"} />
+                    </div>
+                    <div style={{ padding: "10px 12px" }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: "#0F172A", marginBottom: 4, lineHeight: 1.3, minHeight: 32, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                        {prodName(p)}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontWeight: 900, fontSize: 13, color: "#6366F1" }}>{fmtPrice(price)}</span>
+                        {pct && <span style={{ textDecoration: "line-through", fontSize: 10, color: "#94A3B8" }}>{fmtPrice(old)}</span>}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        )}
       </main>
 
       {/* درج الجوال */}
@@ -792,6 +1069,25 @@ export default function CategoryPage() {
             </button>
           </div>
         </>
+      )}
+
+      {/* النظرة السريعة */}
+      {quickViewProd && <QuickView product={quickViewProd} onClose={() => setQuickViewProd(null)} />}
+
+      {/* زر الصعود للأعلى */}
+      {showTop && (
+        <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="scroll-top-btn"
+          aria-label={lang === "ar" ? "إلى الأعلى" : "Scroll to top"}
+          style={{
+            position: "fixed", bottom: 20, insetInlineEnd: 20, width: 46, height: 46, borderRadius: "50%",
+            background: "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", border: "none",
+            cursor: "pointer", fontSize: 20, fontWeight: 800, zIndex: 900,
+            boxShadow: "0 10px 24px rgba(99,102,241,.45)", transition: "transform .15s",
+            animation: "fadeUp .3s both",
+          }}>
+          ↑
+        </button>
       )}
     </div>
   );
