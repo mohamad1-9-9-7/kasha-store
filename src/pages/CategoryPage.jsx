@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { C, shadow, r, safeParse, slugify, fmt, catName } from "../Theme";
+import { C, shadow, r, safeParse, slugify, fmt, fmtPrice, catName, prodName } from "../Theme";
 import MiniNav from "../components/MiniNav";
 import { useLang } from "../context/LanguageContext";
 import { T } from "../i18n";
@@ -305,7 +305,7 @@ export default function CategoryPage() {
                   <Link to={`/product/${p.id}`} style={{ display: "block", position: "relative" }}>
                     <div style={{ position: "relative", overflow: "hidden", height: 200 }}>
                       <img src={(p.image || "").trim() || "https://via.placeholder.com/400x300?text=صورة"}
-                        alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform .4s ease" }}
+                        alt={prodName(p)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform .4s ease" }}
                         onMouseOver={e => e.currentTarget.style.transform = "scale(1.06)"}
                         onMouseOut={e => e.currentTarget.style.transform = "scale(1)"}
                         onError={e => { e.currentTarget.src = "https://via.placeholder.com/400x300?text=صورة"; }} />
@@ -324,11 +324,11 @@ export default function CategoryPage() {
 
                   <div style={{ padding: "16px" }}>
                     {p.brand && <div style={{ fontSize: 11, fontWeight: 700, color: "#16A34A", marginBottom: 4 }}>🏷️ {p.brand}</div>}
-                    <Link to={`/product/${p.id}`} style={{ display: "block", fontWeight: 800, fontSize: 15, color: "#0F172A", marginBottom: 8, lineHeight: 1.4 }}>{p.name}</Link>
+                    <Link to={`/product/${p.id}`} style={{ display: "block", fontWeight: 800, fontSize: 15, color: "#0F172A", marginBottom: 8, lineHeight: 1.4 }}>{prodName(p)}</Link>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                      <span style={{ fontWeight: 900, fontSize: 18, color: "#6366F1" }}>{fmt(price)}</span>
-                      {pct && <span style={{ textDecoration: "line-through", fontSize: 13, color: "#94A3B8" }}>{fmt(old)}</span>}
+                      <span style={{ fontWeight: 900, fontSize: 18, color: "#6366F1" }}>{fmtPrice(price)}</span>
+                      {pct && <span style={{ textDecoration: "line-through", fontSize: 13, color: "#94A3B8" }}>{fmtPrice(old)}</span>}
                     </div>
                     {productRatingCount(p.id) > 0 && (
                       <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 8, fontSize: 12, color: "#F59E0B", fontWeight: 700 }}>

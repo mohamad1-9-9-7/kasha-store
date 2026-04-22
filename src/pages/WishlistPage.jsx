@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useWishlist } from "../context/WishlistContext";
 import { useLang } from "../context/LanguageContext";
 import { T } from "../i18n";
-import { fmt } from "../Theme";
+import { fmt, fmtPrice, prodName } from "../Theme";
 import MiniNav from "../components/MiniNav";
 
 export default function WishlistPage() {
@@ -50,7 +50,7 @@ export default function WishlistPage() {
                 <div key={p.id} className="wish-card" style={{ background: "#fff", borderRadius: 20, border: "1px solid #F1F5F9", boxShadow: "0 2px 12px rgba(0,0,0,.05)", overflow: "hidden", animation: `fadeUp .4s ${i * .05}s both`, position: "relative" }}>
                   <Link to={`/product/${p.id}`} style={{ textDecoration: "none" }}>
                     <div style={{ position: "relative", height: 200, overflow: "hidden", background: "#F8FAFC" }}>
-                      <img src={p.image || ""} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
+                      <img src={p.image || ""} alt={prodName(p)} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
                       {pct && <span style={{ position: "absolute", top: 10, right: 10, background: "#EF4444", color: "#fff", borderRadius: 999, padding: "3px 10px", fontSize: 12, fontWeight: 800 }}>{lang === "ar" ? `وفر ${pct}%` : `-${pct}%`}</span>}
                     </div>
                   </Link>
@@ -62,11 +62,11 @@ export default function WishlistPage() {
                   <div style={{ padding: "14px 16px" }}>
                     <div style={{ fontSize: 11, color: "#6366F1", fontWeight: 700, marginBottom: 4 }}>{p.category}</div>
                     <Link to={`/product/${p.id}`} style={{ textDecoration: "none" }}>
-                      <div style={{ fontWeight: 800, fontSize: 15, color: "#0F172A", marginBottom: 8, lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{p.name}</div>
+                      <div style={{ fontWeight: 800, fontSize: 15, color: "#0F172A", marginBottom: 8, lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{prodName(p)}</div>
                     </Link>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontWeight: 900, fontSize: 17, color: "#6366F1" }}>{fmt(p.price)}</span>
-                      {pct && <span style={{ textDecoration: "line-through", fontSize: 13, color: "#94A3B8" }}>{fmt(p.oldPrice)}</span>}
+                      <span style={{ fontWeight: 900, fontSize: 17, color: "#6366F1" }}>{fmtPrice(p.price)}</span>
+                      {pct && <span style={{ textDecoration: "line-through", fontSize: 13, color: "#94A3B8" }}>{fmtPrice(p.oldPrice)}</span>}
                     </div>
                     <Link to={`/product/${p.id}`} style={{ display: "block", marginTop: 12, padding: "10px", background: "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", borderRadius: 12, textAlign: "center", fontWeight: 800, fontSize: 13, textDecoration: "none" }}>
                       {t("add_to_cart")}

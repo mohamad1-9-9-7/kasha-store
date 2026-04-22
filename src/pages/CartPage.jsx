@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { CartContext } from "../context/CartContext";
 import { apiFetch } from "../api";
-import { C, shadow, inputBase, focusIn, focusOut, safeParse, fmt } from "../Theme";
+import { C, shadow, inputBase, focusIn, focusOut, safeParse, fmt, fmtPrice, prodName } from "../Theme";
 import MiniNav from "../components/MiniNav";
 import { useToast } from "../context/ToastContext";
 import { useLang } from "../context/LanguageContext";
@@ -473,7 +473,7 @@ export default function CartPage() {
                     {it.image ? (
                       <img
                         src={(it.image || "").trim()}
-                        alt={it.name}
+                        alt={prodName(it)}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                         onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = "https://placehold.co/200x200?text=📦"; }}
                       />
@@ -483,7 +483,7 @@ export default function CartPage() {
                   </div>
 
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: "#0F172A", marginBottom: 4 }}>{it.name}</div>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: "#0F172A", marginBottom: 4 }}>{prodName(it)}</div>
                     {it.variantSummary?.length > 0 && (
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
                         {it.variantSummary.map((v, i) => (
@@ -541,13 +541,13 @@ export default function CartPage() {
                           <Link to={`/product/${p.id}`} style={{ textDecoration: "none", display: "block" }}>
                             <div style={{ height: 80, background: "#F1F5F9", position: "relative", overflow: "hidden" }}>
                               {p.image
-                                ? <img src={p.image} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = "https://placehold.co/200x200?text=📦"; }} />
+                                ? <img src={p.image} alt={prodName(p)} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = "https://placehold.co/200x200?text=📦"; }} />
                                 : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, opacity: .3 }}>📦</div>}
                               {pct && <span style={{ position: "absolute", top: 4, right: 4, background: "#EF4444", color: "#fff", borderRadius: 999, padding: "2px 6px", fontSize: 10, fontWeight: 800 }}>-{pct}%</span>}
                             </div>
                             <div style={{ padding: "8px 10px" }}>
-                              <div style={{ fontWeight: 700, fontSize: 12, color: "#0F172A", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
-                              <div style={{ fontWeight: 900, fontSize: 13, color: "#6366F1" }}>{fmt(p.price)}</div>
+                              <div style={{ fontWeight: 700, fontSize: 12, color: "#0F172A", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{prodName(p)}</div>
+                              <div style={{ fontWeight: 900, fontSize: 13, color: "#6366F1" }}>{fmtPrice(p.price)}</div>
                             </div>
                           </Link>
                           <button
@@ -556,9 +556,9 @@ export default function CartPage() {
                               const idx  = cart.findIndex(x => String(x.id) === String(p.id));
                               if (idx >= 0) cart[idx].qty = (cart[idx].qty || 1) + 1;
                               // ✅ حقول خفيفة فقط (بدون كل الصور)
-                              else cart.push({ id: p.id, name: p.name, price: Number(p.price) || 0, image: p.image || p.images?.[0] || "", category: p.category || "", qty: 1 });
+                              else cart.push({ id: p.id, name: p.name, nameEn: p.nameEn, price: Number(p.price) || 0, image: p.image || p.images?.[0] || "", category: p.category || "", qty: 1 });
                               setItems(cart);
-                              toast(`✅ ${p.name} ${isAr ? "أُضيف للسلة" : "added to cart"}`, "success");
+                              toast(`✅ ${prodName(p)} ${isAr ? "أُضيف للسلة" : "added to cart"}`, "success");
                             }}
                             style={{ width: "100%", padding: "7px 0", background: "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", border: "none", fontWeight: 800, fontSize: 12, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
                             + {isAr ? "أضف" : "Add"}

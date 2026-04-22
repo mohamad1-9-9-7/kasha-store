@@ -26,13 +26,25 @@ const DEFAULTS = {
   vatIncluded:       true, // true = السعر شامل الضريبة، false = تُضاف فوق السعر
 };
 
+// Cached on every load so non-hook helpers (fmt, priceVat) can read VAT config synchronously.
+const CACHE_KEY = "kashkha_settings_cache";
+
+function readCache() {
+  try { return JSON.parse(localStorage.getItem(CACHE_KEY) || "null") || null; }
+  catch { return null; }
+}
+
 export function useSettings() {
-  const [settings, setSettings] = useState(DEFAULTS);
+  const [settings, setSettings] = useState(() => ({ ...DEFAULTS, ...(readCache() || {}) }));
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     apiFetch("/api/settings")
-      .then((data) => { setSettings({ ...DEFAULTS, ...data }); })
+      .then((data) => {
+        const merged = { ...DEFAULTS, ...data };
+        setSettings(merged);
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify(merged)); } catch {}
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

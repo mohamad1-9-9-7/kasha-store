@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { slugify, fmt } from "../Theme";
+import { slugify, fmt, fmtPrice, prodName } from "../Theme";
 import MiniNav from "../components/MiniNav";
 import { ProductSkeleton } from "../components/Skeleton";
 import { useLang } from "../context/LanguageContext";
@@ -82,15 +82,15 @@ export default function SearchPage() {
                   <Link key={p.id} to={`/product/${p.id}`} className="prod-card"
                     style={{ display: "block", background: "#fff", borderRadius: 20, border: "1px solid #F1F5F9", boxShadow: "0 2px 12px rgba(0,0,0,.05)", overflow: "hidden", textDecoration: "none", animation: `fadeUp .4s ${i * .04}s both` }}>
                     <div style={{ position: "relative", height: 200, overflow: "hidden" }}>
-                      <img src={p.image || ""} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
+                      <img src={p.image || ""} alt={prodName(p)} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
                       {pct && <span style={{ position: "absolute", top: 10, right: 10, background: "#EF4444", color: "#fff", borderRadius: 999, padding: "3px 10px", fontSize: 12, fontWeight: 800 }}>وفر {pct}%</span>}
                     </div>
                     <div style={{ padding: "14px 16px" }}>
                       <div style={{ fontSize: 11, color: "#6366F1", fontWeight: 700, marginBottom: 4 }}>{p.category}</div>
-                      <div style={{ fontWeight: 800, fontSize: 15, color: "#0F172A", marginBottom: 8, lineHeight: 1.4 }}>{p.name}</div>
+                      <div style={{ fontWeight: 800, fontSize: 15, color: "#0F172A", marginBottom: 8, lineHeight: 1.4 }}>{prodName(p)}</div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontWeight: 900, fontSize: 17, color: "#6366F1" }}>{fmt(price)}</span>
-                        {pct && <span style={{ textDecoration: "line-through", fontSize: 13, color: "#94A3B8" }}>{fmt(old)}</span>}
+                        <span style={{ fontWeight: 900, fontSize: 17, color: "#6366F1" }}>{fmtPrice(price)}</span>
+                        {pct && <span style={{ textDecoration: "line-through", fontSize: 13, color: "#94A3B8" }}>{fmtPrice(old)}</span>}
                       </div>
                     </div>
                   </Link>

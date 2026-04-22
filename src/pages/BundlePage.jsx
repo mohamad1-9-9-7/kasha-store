@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { CartContext } from "../context/CartContext";
 import { apiFetch } from "../api";
-import { C, shadow, r, inputBase, focusIn, focusOut, safeParse, fmt } from "../Theme";
+import { C, shadow, r, inputBase, focusIn, focusOut, safeParse, fmt, fmtPrice, prodName } from "../Theme";
 import MiniNav from "../components/MiniNav";
 import { useToast } from "../context/ToastContext";
 import { useLang } from "../context/LanguageContext";
@@ -361,7 +361,7 @@ export default function BundlePage() {
                       {/* صورة */}
                       <div style={{ height: 140, background: "#F8FAFC", position: "relative", overflow: "hidden" }}>
                         {p.image
-                          ? <img src={p.image} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform .3s" }}
+                          ? <img src={p.image} alt={prodName(p)} style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform .3s" }}
                               onError={e => e.currentTarget.style.display = "none"} />
                           : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, opacity: .2 }}>📦</div>
                         }
@@ -384,12 +384,12 @@ export default function BundlePage() {
                       {/* معلومات */}
                       <div style={{ padding: "12px 14px" }}>
                         <div style={{ fontWeight: 700, fontSize: 13, color: "#0F172A", marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {p.name}
+                          {prodName(p)}
                         </div>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={{ fontWeight: 900, fontSize: 15, color: "#6366F1" }}>{fmt(p.price)}</span>
-                            {p.oldPrice > p.price && <span style={{ textDecoration: "line-through", fontSize: 11, color: "#94A3B8" }}>{fmt(p.oldPrice)}</span>}
+                            <span style={{ fontWeight: 900, fontSize: 15, color: "#6366F1" }}>{fmtPrice(p.price)}</span>
+                            {p.oldPrice > p.price && <span style={{ textDecoration: "line-through", fontSize: 11, color: "#94A3B8" }}>{fmtPrice(p.oldPrice)}</span>}
                           </div>
                           <div style={{
                             width: 28, height: 28, borderRadius: 8,

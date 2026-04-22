@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { safeParse, slugify, fmt, catName } from "../Theme";
+import { safeParse, slugify, fmt, fmtPrice, catName, prodName } from "../Theme";
 import { useLang } from "../context/LanguageContext";
 import { T } from "../i18n";
 import { useCategories } from "../hooks/useCategories";
@@ -459,14 +459,14 @@ export default function HomePage() {
                     onMouseOver={e => { e.currentTarget.style.transform = "translateY(-5px)"; e.currentTarget.style.boxShadow = "0 16px 36px rgba(0,0,0,.1)"; }}
                     onMouseOut={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 10px rgba(0,0,0,.05)"; }}>
                     <div style={{ position: "relative", height: 180, overflow: "hidden", background: "#F8FAFC" }}>
-                      <img src={p.image || ""} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
+                      <img src={p.image || ""} alt={prodName(p)} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
                       <span style={{ position: "absolute", top: 8, right: 8, background: "#EF4444", color: "#fff", borderRadius: 999, padding: "3px 9px", fontSize: 11, fontWeight: 800 }}>{t("save_pct")} {pct}%</span>
                     </div>
                     <div style={{ padding: "12px 14px" }}>
-                      <div style={{ fontWeight: 800, fontSize: 14, color: "#0F172A", marginBottom: 6, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{p.name}</div>
+                      <div style={{ fontWeight: 800, fontSize: 14, color: "#0F172A", marginBottom: 6, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{prodName(p)}</div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontWeight: 900, fontSize: 16, color: "#6366F1" }}>{fmt(price)}</span>
-                        <span style={{ textDecoration: "line-through", fontSize: 12, color: "#94A3B8" }}>{fmt(old)}</span>
+                        <span style={{ fontWeight: 900, fontSize: 16, color: "#6366F1" }}>{fmtPrice(price)}</span>
+                        <span style={{ textDecoration: "line-through", fontSize: 12, color: "#94A3B8" }}>{fmtPrice(old)}</span>
                       </div>
                     </div>
                   </Link>
@@ -495,12 +495,12 @@ export default function HomePage() {
                   onMouseOver={e => { e.currentTarget.style.transform = "translateY(-5px)"; e.currentTarget.style.boxShadow = "0 16px 36px rgba(0,0,0,.1)"; }}
                   onMouseOut={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 10px rgba(0,0,0,.05)"; }}>
                   <div style={{ height: 180, overflow: "hidden", background: "#F8FAFC" }}>
-                    <img src={p.image || ""} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
+                    <img src={p.image || ""} alt={prodName(p)} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
                   </div>
                   <div style={{ padding: "12px 14px" }}>
                     <div style={{ fontSize: 11, color: "#6366F1", fontWeight: 700, marginBottom: 4 }}>{p.category}</div>
-                    <div style={{ fontWeight: 800, fontSize: 14, color: "#0F172A", marginBottom: 6, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{p.name}</div>
-                    <span style={{ fontWeight: 900, fontSize: 16, color: "#6366F1" }}>{fmt(Number(p.price))}</span>
+                    <div style={{ fontWeight: 800, fontSize: 14, color: "#0F172A", marginBottom: 6, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{prodName(p)}</div>
+                    <span style={{ fontWeight: 900, fontSize: 16, color: "#6366F1" }}>{fmtPrice(Number(p.price))}</span>
                   </div>
                 </Link>
               ))}

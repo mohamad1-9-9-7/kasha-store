@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useProducts } from "../hooks/useProducts";
 import { fuzzySearch, normalize } from "../utils/fuzzySearch";
-import { fmt } from "../Theme";
+import { fmt, fmtPrice, prodName } from "../Theme";
 import { useLang } from "../context/LanguageContext";
 
 const RECENT_KEY = "recentSearches";
@@ -196,10 +196,10 @@ export default function SearchAutocomplete({ placeholder, style, onClose }) {
                 )}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: "#0F172A", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#0F172A", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{prodName(p)}</div>
                 <div style={{ fontSize: 11, color: "#94A3B8" }}>{p.category}{p.brand ? ` · ${p.brand}` : ""}</div>
               </div>
-              <div style={{ fontWeight: 900, color: "#6366F1", fontSize: 14, flexShrink: 0 }}>{fmt(p.price)}</div>
+              <div style={{ fontWeight: 900, color: "#6366F1", fontSize: 14, flexShrink: 0 }}>{fmtPrice(p.price)}</div>
             </button>
           ))}
 

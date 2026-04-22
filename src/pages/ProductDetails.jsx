@@ -4,7 +4,7 @@ import { CartContext } from "../context/CartContext";
 import { useWishlist } from "../context/WishlistContext";
 import { useLang } from "../context/LanguageContext";
 import { T } from "../i18n";
-import { C, shadow, safeParse, slugify, fmt } from "../Theme";
+import { C, shadow, safeParse, slugify, fmt, fmtPrice, priceVat, prodName, prodDesc } from "../Theme";
 import MiniNav from "../components/MiniNav";
 import { useProducts } from "../hooks/useProducts";
 import { useRatings, submitRating } from "../hooks/useRatings";
@@ -46,16 +46,16 @@ function ProductCard({ p }) {
       onMouseOut={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = shadow.sm; }}>
       <div style={{ height: 160, background: "#F8FAFC", position: "relative", overflow: "hidden" }}>
         {p.image
-          ? <img src={p.image} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display="none"} />
+          ? <img src={p.image} alt={prodName(p)} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display="none"} />
           : <div style={{ width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,opacity:.25 }}>📦</div>
         }
         {pct && <span style={{ position:"absolute",top:8,right:8,background:"#EF4444",color:"#fff",borderRadius:999,padding:"3px 8px",fontSize:11,fontWeight:800 }}>-{pct}%</span>}
       </div>
       <div style={{ padding: "12px 14px" }}>
-        <div style={{ fontWeight: 700, fontSize: 13, color: "#0F172A", marginBottom: 6, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</div>
+        <div style={{ fontWeight: 700, fontSize: 13, color: "#0F172A", marginBottom: 6, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{prodName(p)}</div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <span style={{ fontWeight: 900, fontSize: 15, color: "#6366F1" }}>{fmt(p.price)}</span>
-          {p.oldPrice > p.price && <span style={{ textDecoration:"line-through", fontSize:12, color:"#94A3B8" }}>{fmt(p.oldPrice)}</span>}
+          <span style={{ fontWeight: 900, fontSize: 15, color: "#6366F1" }}>{fmtPrice(p.price)}</span>
+          {p.oldPrice > p.price && <span style={{ textDecoration:"line-through", fontSize:12, color:"#94A3B8" }}>{fmtPrice(p.oldPrice)}</span>}
         </div>
       </div>
     </Link>
@@ -99,10 +99,11 @@ export default function ProductDetails() {
     setImgLoaded(false);
     // Open Graph meta tags — use custom metaTitle/metaDescription if set
     if (found) {
-      const metaTitle = (found.metaTitle || "").trim() || `${found.name} — كشخة`;
+      const displayName = prodName(found);
+      const metaTitle = (found.metaTitle || "").trim() || `${displayName} — كشخة`;
       const metaDesc = (found.metaDescription || "").trim()
-        || found.description
-        || `${found.name} — ${fmt(found.price)} درهم`;
+        || prodDesc(found)
+        || `${displayName} — ${fmtPrice(found.price)} درهم`;
 
       document.title = metaTitle;
       const setMeta = (prop, val, isName) => {
@@ -241,6 +242,7 @@ export default function ProductDetails() {
     const cartItem = {
       id: product.id,
       name: product.name,
+      nameEn: product.nameEn,
       price: finalPrice,
       image: product.image || product.images?.[0] || "",
       category: product.category || "",
@@ -253,7 +255,7 @@ export default function ProductDetails() {
 
   const shareWhatsApp = () => {
     const url = window.location.href;
-    const text = product.name + " — " + fmt(price) + "\n" + url;
+    const text = prodName(product) + " — " + fmtPrice(price) + "\n" + url;
     window.open("https://wa.me/?text=" + encodeURIComponent(text));
   };
 
@@ -302,7 +304,7 @@ export default function ProductDetails() {
               )}
               <img
                 src={(images[activeImg] || "").trim() || "https://placehold.co/600x500?text=صورة"}
-                alt={product.name}
+                alt={prodName(product)}
                 onLoad={() => setImgLoaded(true)}
                 style={{ width: "100%", height: "100%", minHeight: 380, objectFit: "cover", display: "block", opacity: imgLoaded ? 1 : 0, transition: "opacity .3s" }}
                 onError={e => { e.currentTarget.src = "https://placehold.co/600x500?text=صورة"; setImgLoaded(true); }}
@@ -349,7 +351,7 @@ export default function ProductDetails() {
                 {product.returns === "Non-Returnable" && <span style={{ background: "#FEF2F2", color: "#DC2626", borderRadius: 999, padding: "4px 12px", fontSize: 12, fontWeight: 700 }}>🚫 {lang === "ar" ? "غير قابل للإرجاع" : "Non-Returnable"}</span>}
                 {product.sku && <span style={{ background: "#F1F5F9", color: "#64748B", borderRadius: 999, padding: "4px 12px", fontSize: 11, fontWeight: 600, fontFamily: "monospace", letterSpacing: .5 }}>SKU: {product.sku}</span>}
               </div>
-              <h1 style={{ fontSize: 22, fontWeight: 900, color: "#0F172A", marginTop: 12, lineHeight: 1.4 }}>{product.name}</h1>
+              <h1 style={{ fontSize: 22, fontWeight: 900, color: "#0F172A", marginTop: 12, lineHeight: 1.4 }}>{prodName(product)}</h1>
               {/* متوسط التقييم */}
               {ratings.length > 0 && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
@@ -362,13 +364,13 @@ export default function ProductDetails() {
 
             {/* السعر */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px", background: "#F8FAFC", borderRadius: 14, border: "1px solid #F1F5F9" }}>
-              <span style={{ fontSize: 28, fontWeight: 900, color: "#6366F1" }}>{fmt(finalPrice)}</span>
+              <span style={{ fontSize: 28, fontWeight: 900, color: "#6366F1" }}>{fmtPrice(finalPrice)}</span>
               {variantPriceAdj > 0 && (
-                <span style={{ fontSize: 13, color: "#10B981", fontWeight: 700 }}>+{fmt(variantPriceAdj)}</span>
+                <span style={{ fontSize: 13, color: "#10B981", fontWeight: 700 }}>+{fmtPrice(variantPriceAdj)}</span>
               )}
               {pct && (
                 <>
-                  <span style={{ textDecoration: "line-through", fontSize: 16, color: "#94A3B8" }}>{fmt(old)}</span>
+                  <span style={{ textDecoration: "line-through", fontSize: 16, color: "#94A3B8" }}>{fmtPrice(old)}</span>
                   <span style={{ background: "#FEF2F2", color: "#EF4444", borderRadius: 999, padding: "4px 10px", fontWeight: 800, fontSize: 12 }}>- {pct}%</span>
                 </>
               )}
@@ -391,8 +393,8 @@ export default function ProductDetails() {
             )}
 
             {/* الوصف */}
-            {product.description && (
-              <p style={{ color: "#64748B", lineHeight: 1.8, fontSize: 14, borderTop: "1px solid #F1F5F9", paddingTop: 14, margin: 0 }}>{product.description}</p>
+            {prodDesc(product) && (
+              <p style={{ color: "#64748B", lineHeight: 1.8, fontSize: 14, borderTop: "1px solid #F1F5F9", paddingTop: 14, margin: 0, direction: lang === "ar" ? "rtl" : "ltr" }}>{prodDesc(product)}</p>
             )}
 
             {/* جدول المواصفات */}

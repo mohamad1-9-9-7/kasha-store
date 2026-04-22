@@ -137,6 +137,25 @@ export const fmt = (n) => {
   return lang === "ar" ? `${(+n).toFixed(2)} درهم` : `${(+n).toFixed(2)} AED`;
 };
 
+// Apply VAT to a net price for storefront display.
+// Reads vatEnabled / vatPercent / vatIncluded from the cached settings.
+// vatIncluded=true → price already includes VAT, return as-is.
+// vatIncluded=false → add VAT on top.
+export const priceVat = (n) => {
+  const raw = +n;
+  if (!Number.isFinite(raw)) return raw;
+  let cfg = null;
+  try { cfg = JSON.parse(localStorage.getItem("kashkha_settings_cache") || "null"); } catch {}
+  const enabled  = cfg?.vatEnabled !== false;
+  const included = cfg?.vatIncluded !== false;
+  const percent  = Number(cfg?.vatPercent) || 0;
+  if (!enabled || included || !percent) return raw;
+  return raw * (1 + percent / 100);
+};
+
+// Convenience: format a product price with VAT applied according to settings.
+export const fmtPrice = (n) => fmt(priceVat(n));
+
 export const slugify = (s) => String(s || "").trim().toLowerCase().replace(/\s+/g, "-");
 
 // اسم القسم حسب اللغة
