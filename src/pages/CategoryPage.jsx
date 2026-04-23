@@ -166,12 +166,24 @@ export default function CategoryPage() {
 
   const trackView = (p) => addRecentlyViewed(p);
 
-  const categoryName = useMemo(() => {
-    const catObj = categories.map(c => typeof c === "string" ? { name: c } : c).find(c => slugify(c?.name) === categoryId);
-    return catObj ? catName(catObj) : categoryId;
-  }, [categories, categoryId, lang]);
+  const catObj = useMemo(() => {
+    return categories
+      .map(c => typeof c === "string" ? { name: c } : c)
+      .find(c => slugify(c?.name) === categoryId || slugify(c?.nameEn) === categoryId);
+  }, [categories, categoryId]);
 
-  const products = useMemo(() => allProds.filter(p => slugify(p?.category) === categoryId), [allProds, categoryId]);
+  const categoryName = useMemo(() => {
+    return catObj ? catName(catObj) : categoryId;
+  }, [catObj, categoryId, lang]);
+
+  const products = useMemo(() => {
+    const slugs = new Set([
+      slugify(catObj?.name),
+      slugify(catObj?.nameEn),
+      categoryId,
+    ].filter(Boolean));
+    return allProds.filter(p => slugs.has(slugify(p?.category)));
+  }, [allProds, categoryId, catObj]);
 
   const productStars = (pid) => Number(ratingsSummary[String(pid)]?.avg || 0);
   const productRatingCount = (pid) => Number(ratingsSummary[String(pid)]?.count || 0);
