@@ -60,7 +60,11 @@
       "mcp__Claude_Preview__preview_start",
       "Bash(curl -s http://localhost:3001/api/products)",
       "Bash(kill %1)",
-      "Bash(exit 0)"
+      "Bash(exit 0)",
+      "Bash(xargs -I {} sh -c 'echo \"=== {} ===\"; tail -60 \"{}\"')",
+      "Bash(npx --no-install vite optimize)",
+      "Bash(node -e \"require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/pages/AdminDashboard.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\)\")",
+      "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/pages/AdminDashboard.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('OK'\\); } catch\\(e\\) { console.log\\('ERROR line', e.loc?.line, 'col', e.loc?.column, ':', e.message\\); }\")"
     ]
   }
 }
