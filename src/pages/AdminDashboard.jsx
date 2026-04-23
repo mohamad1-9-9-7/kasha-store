@@ -93,7 +93,7 @@ export default function AdminDashboard() {
 
   /* حالات طيّ الأقسام */
   const [showLowStock, setShowLowStock] = useState(false);
-  const [openAdv, setOpenAdv] = useState({ loyalty: false, zones: false, vat: false, pixels: false, danger: false });
+  const [openAdv, setOpenAdv] = useState({ loyalty: false, zones: false, vat: false, pixels: false, notify: false, danger: false });
   const toggleAdv = (k) => setOpenAdv(s => ({ ...s, [k]: !s[k] }));
 
   /* مودال تأكيد الحذف الخطر */
@@ -112,6 +112,7 @@ export default function AdminDashboard() {
     { id: "sec-vat", icon: "🧾", label: "ضريبة VAT", keywords: "ضريبة tax vat قيمة مضافة 5" },
     { id: "sec-social", icon: "📲", label: "روابط السوشيال", keywords: "إنستغرام تيك توك فيسبوك تويتر سوشيال" },
     { id: "sec-pixels", icon: "📊", label: "بكسلات التتبع", keywords: "facebook pixel google analytics tiktok بكسل تتبع" },
+    { id: "sec-notify", icon: "📬", label: "إشعارات الطلبات", keywords: "webhook whatsapp telegram notify إشعار طلب" },
     { id: "sec-backup", icon: "💾", label: "النسخ الاحتياطي", keywords: "backup نسخ احتياطي تصدير استرجاع" },
     { id: "sec-danger", icon: "🚨", label: "منطقة الخطر", keywords: "حذف كل خطر danger" },
   ];
@@ -1051,6 +1052,111 @@ export default function AdminDashboard() {
                   <label style={lbl}>⚫ TikTok Pixel ID <HelpTip text="بيربط متجرك مع إعلانات تيك توك، ويتبع المبيعات من الإعلانات." title="TikTok Pixel" /></label>
                   <input placeholder="ABCDEFGHIJ1234567890" value={settings.tiktokPixelId || ""} onChange={e => setSettings(s => ({ ...s, tiktokPixelId: e.target.value.trim() }))} style={{ ...inputBase, direction: "ltr" }} onFocus={focusIn} onBlur={focusOut} />
                   <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>من TikTok Ads Manager → Assets → Events</div>
+                </div>
+              </div>
+            </AdvCard>
+            </div>
+
+            {/* إشعارات الطلبات للأدمن */}
+            <div id="sec-notify" style={{ display: visibleSettingsSections.has("sec-notify") ? "block" : "none" }}>
+            <AdvCard title="إشعارات الطلبات" icon="📬" subtitle="إرسال تلقائي لكل طلب جديد — بدون فتح نوافذ"
+              open={openAdv.notify} onToggle={() => toggleAdv("notify")}>
+
+              <div style={{ background: "#F0F9FF", border: "1.5px solid #BAE6FD", borderRadius: 12, padding: "12px 14px", marginBottom: 16, fontSize: 12, color: "#075985", lineHeight: 1.7 }}>
+                💡 <b>اختر طريقة وحدة أو كلهم.</b> كل طلب جديد بيبعت إشعار تلقائي عالسيرفر — ما في داعي يفتح الواتساب.
+              </div>
+
+              {/* 1) Webhook URL */}
+              <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: "1px solid #F1F5F9" }}>
+                <h4 style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 800, color: "#0F172A" }}>
+                  🪝 Webhook URL
+                  <HelpTip text="رابط الويب هوك — بيستقبل كل طلب كـ JSON. تستخدمه مع Zapier / Make / n8n / Discord / Slack — وتوصله لأي خدمة تحبها." title="ما هو Webhook؟" />
+                </h4>
+                <p style={{ margin: "0 0 10px", fontSize: 12, color: "#64748B" }}>
+                  الأسهل: سجّل مجاناً بـ Zapier أو Make، اعمل webhook، وحط الرابط هون.
+                </p>
+                <input
+                  placeholder="https://hooks.zapier.com/hooks/catch/..."
+                  value={settings.adminWebhookUrl || ""}
+                  onChange={e => setSettings(s => ({ ...s, adminWebhookUrl: e.target.value.trim() }))}
+                  style={{ ...inputBase, direction: "ltr" }}
+                  onFocus={focusIn} onBlur={focusOut}
+                />
+              </div>
+
+              {/* 2) WhatsApp Cloud API */}
+              <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: "1px solid #F1F5F9" }}>
+                <h4 style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 800, color: "#0F172A" }}>
+                  💬 WhatsApp Cloud API (Meta) <span style={{ fontSize: 10, fontWeight: 700, background: "#ECFDF5", color: "#065F46", borderRadius: 6, padding: "2px 6px", marginInlineStart: 6 }}>مجاني</span>
+                  <HelpTip text="رسالة WhatsApp مباشرة لرقمك لأي طلب جديد. تحتاج حساب WhatsApp Business + تطبيق على Meta Business Platform." title="WhatsApp Cloud API" />
+                </h4>
+                <p style={{ margin: "0 0 10px", fontSize: 12, color: "#64748B" }}>
+                  سجّل بـ <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener" style={{ color: "#6366F1" }}>developers.facebook.com</a> — اعمل WhatsApp App — بياخد Token + Phone ID.
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="admin-2col">
+                  <div>
+                    <label style={lbl}>Access Token</label>
+                    <input
+                      placeholder="EAAxxxx..."
+                      value={settings.waCloudToken || ""}
+                      onChange={e => setSettings(s => ({ ...s, waCloudToken: e.target.value.trim() }))}
+                      style={{ ...inputBase, direction: "ltr", fontSize: 12 }}
+                      onFocus={focusIn} onBlur={focusOut}
+                    />
+                  </div>
+                  <div>
+                    <label style={lbl}>Phone Number ID</label>
+                    <input
+                      placeholder="123456789012345"
+                      value={settings.waCloudPhoneId || ""}
+                      onChange={e => setSettings(s => ({ ...s, waCloudPhoneId: e.target.value.trim() }))}
+                      style={{ ...inputBase, direction: "ltr", fontSize: 12 }}
+                      onFocus={focusIn} onBlur={focusOut}
+                    />
+                  </div>
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <label style={lbl}>رقم الأدمن (مع 971) <HelpTip text="الرقم اللي رح توصله الإشعارات. لازم يكون مرتبط بحساب واتساب، مع رمز الدولة (مثلاً 971585446473)." /></label>
+                    <input
+                      placeholder="971585446473"
+                      value={settings.waAdminPhone || ""}
+                      onChange={e => setSettings(s => ({ ...s, waAdminPhone: e.target.value.trim() }))}
+                      style={{ ...inputBase, direction: "ltr" }}
+                      onFocus={focusIn} onBlur={focusOut}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 3) Telegram */}
+              <div>
+                <h4 style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 800, color: "#0F172A" }}>
+                  ✈️ Telegram Bot <span style={{ fontSize: 10, fontWeight: 700, background: "#ECFDF5", color: "#065F46", borderRadius: 6, padding: "2px 6px", marginInlineStart: 6 }}>مجاني + أسهل</span>
+                  <HelpTip text="الأسهل من الكل. اعمل بوت جديد عن طريق @BotFather على تيليغرام، خذ التوكن، وابعت رسالة للبوت أول شي، بعدين ادخل على /getUpdates عشان تاخد chat_id." title="Telegram Bot" />
+                </h4>
+                <p style={{ margin: "0 0 10px", fontSize: 12, color: "#64748B" }}>
+                  الأسرع والأسهل: افتح تيليغرام، روح عـ <b>@BotFather</b>، اعمل بوت، خذ التوكن.
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="admin-2col">
+                  <div>
+                    <label style={lbl}>Bot Token</label>
+                    <input
+                      placeholder="1234567890:ABC-DEF..."
+                      value={settings.telegramBotToken || ""}
+                      onChange={e => setSettings(s => ({ ...s, telegramBotToken: e.target.value.trim() }))}
+                      style={{ ...inputBase, direction: "ltr", fontSize: 12 }}
+                      onFocus={focusIn} onBlur={focusOut}
+                    />
+                  </div>
+                  <div>
+                    <label style={lbl}>Chat ID</label>
+                    <input
+                      placeholder="123456789"
+                      value={settings.telegramChatId || ""}
+                      onChange={e => setSettings(s => ({ ...s, telegramChatId: e.target.value.trim() }))}
+                      style={{ ...inputBase, direction: "ltr", fontSize: 12 }}
+                      onFocus={focusIn} onBlur={focusOut}
+                    />
+                  </div>
                 </div>
               </div>
             </AdvCard>

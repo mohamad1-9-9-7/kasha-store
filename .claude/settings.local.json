@@ -66,7 +66,9 @@
       "Bash(node -e \"require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/pages/AdminDashboard.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\)\")",
       "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/pages/AdminDashboard.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('OK'\\); } catch\\(e\\) { console.log\\('ERROR line', e.loc?.line, 'col', e.loc?.column, ':', e.message\\); }\")",
       "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/components/TruckSuccess.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('TruckSuccess OK'\\); } catch\\(e\\) { console.log\\('ERROR line', e.loc?.line, ':', e.message\\); }\")",
-      "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/pages/CartPage.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('CartPage OK'\\); } catch\\(e\\) { console.log\\('ERROR line', e.loc?.line, ':', e.message\\); }\")"
+      "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/pages/CartPage.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('CartPage OK'\\); } catch\\(e\\) { console.log\\('ERROR line', e.loc?.line, ':', e.message\\); }\")",
+      "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/pages/AdminDashboard.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('OK'\\); } catch\\(e\\) { console.log\\('ERROR line', e.loc?.line, ':', e.message\\); }\")",
+      "Bash(node -e \"try { require\\('./backend/routes/orders.js'\\); console.log\\('orders.js loads'\\); } catch\\(e\\) { console.log\\('backend err:', e.message\\); }\")"
     ]
   }
 }

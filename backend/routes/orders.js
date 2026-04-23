@@ -3,6 +3,7 @@ const { pool } = require("../db");
 const { requireAuth, requireAdmin } = require("../middleware/auth");
 const { v4: uuidv4 } = require("uuid");
 const { sendMail, orderConfirmationHTML } = require("../lib/mailer");
+const { notifyAdminOfOrder } = require("../lib/notifyAdmin");
 
 // GET orders — admin: all, user: own orders (by phone in token)
 router.get("/", requireAuth, async (req, res) => {
@@ -141,7 +142,10 @@ router.post("/", async (req, res) => {
       pool.query("DELETE FROM abandoned_carts WHERE id = $1", [customer.phone]).catch(() => {});
     }
 
-    // Customer confirmation email (fire-and-forget). Admin uses WhatsApp instead.
+    // 📢 إشعار الأدمن بأي طلب جديد (webhook / WhatsApp / Telegram) — fire & forget
+    notifyAdminOfOrder(order).catch((e) => console.error("notifyAdmin:", e.message));
+
+    // Customer confirmation email (fire-and-forget).
     if (customer.email) {
       (async () => {
         try {

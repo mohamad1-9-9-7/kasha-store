@@ -319,15 +319,6 @@ export default function CartPage() {
         });
       } catch {}
 
-      const adminPhone = (storeSettings.whatsapp || "971585446473").replace(/\D/g, "");
-      const itemsList  = (items || []).map(it => {
-        const vs = (it.variantSummary || []).map(v => `${v.group}: ${v.value}`).join(" - ");
-        return `• ${it.name} × ${it.qty}${vs ? ` (${vs})` : ""}`;
-      }).join("%0A");
-      const locLine    = locationData ? `%0Aموقع GPS: https://maps.google.com/?q=${locationData.lat},${locationData.lng}` : "";
-      const waMsg      = `🛍️ *طلب جديد!*%0Aرقم: ${orderId}%0Aالعميل: ${form.name}%0Aهاتف: ${form.phone}%0Aالمدينة: ${cityLabel}%0A%0Aالمنتجات:%0A${itemsList}%0A%0Aالإجمالي: ${fmt(grandTotal)}%0Aالدفع: ${form.payMethod === "cash" ? "كاش" : "تحويل بنكي"}${locLine}`;
-      window.open(`https://wa.me/${adminPhone}?text=${waMsg}`, "_blank");
-
       // 🚚 شاشة الشاحنة أول شي — بعدين الفاتورة والرسالة
       setTruckData({
         orderId,
