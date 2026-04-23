@@ -12,6 +12,7 @@ import { useProducts } from "../hooks/useProducts";
 import { useSettings } from "../hooks/useSettings";
 import { useCoupons, incrementCouponUses } from "../hooks/useCoupons";
 import InvoiceModal from "../components/InvoiceModal";
+import TruckSuccess from "../components/TruckSuccess";
 import { trackEvent } from "../components/AnalyticsPixels";
 import { parseZones, computeShipping, cartWeight } from "../utils/shipping";
 
@@ -93,6 +94,7 @@ export default function CartPage() {
   const [locLoading, setLocLoading]       = useState(false);
   const [hoverImg, setHoverImg]           = useState(null); // { src, x, y }
   const [invoiceOrder, setInvoiceOrder]   = useState(null);
+  const [truckData, setTruckData]         = useState(null); // { orderId, count }
 
   const user          = safeParse("user");
   const userPoints    = user?.points || 0;
@@ -326,8 +328,13 @@ export default function CartPage() {
       const waMsg      = `🛍️ *طلب جديد!*%0Aرقم: ${orderId}%0Aالعميل: ${form.name}%0Aهاتف: ${form.phone}%0Aالمدينة: ${cityLabel}%0A%0Aالمنتجات:%0A${itemsList}%0A%0Aالإجمالي: ${fmt(grandTotal)}%0Aالدفع: ${form.payMethod === "cash" ? "كاش" : "تحويل بنكي"}${locLine}`;
       window.open(`https://wa.me/${adminPhone}?text=${waMsg}`, "_blank");
 
-      toast(`✅ ${isAr ? `تم إرسال طلبك! ربحت ${earned} نقطة` : `Order sent! You earned ${earned} points`}`, "success");
-      setInvoiceOrder(createdOrder || null);
+      // 🚚 شاشة الشاحنة أول شي — بعدين الفاتورة والرسالة
+      setTruckData({
+        orderId,
+        count: items.length,
+        pendingInvoice: createdOrder || null,
+        earnedMsg: `✅ ${isAr ? `تم إرسال طلبك! ربحت ${earned} نقطة` : `Order sent! You earned ${earned} points`}`,
+      });
     } catch (e) { console.error(e); toast(isAr ? "خطأ في الإرسال، حاول مرة أخرى" : "Submission error, try again", "error"); }
     finally { setLoading(false); }
   };
@@ -369,6 +376,20 @@ export default function CartPage() {
           .upsell-grid{grid-template-columns:repeat(2,1fr)!important}
         }
       `}</style>
+
+      {/* 🚚 شاشة نجاح الطلب */}
+      {truckData && (
+        <TruckSuccess
+          orderId={truckData.orderId}
+          itemsCount={truckData.count}
+          lang={lang}
+          onDone={() => {
+            if (truckData.earnedMsg) toast(truckData.earnedMsg, "success");
+            setInvoiceOrder(truckData.pendingInvoice);
+            setTruckData(null);
+          }}
+        />
+      )}
 
       {/* فاتورة رقمية */}
       {invoiceOrder && (
