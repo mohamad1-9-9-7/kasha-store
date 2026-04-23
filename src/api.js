@@ -20,6 +20,24 @@ export async function apiFetch(path, { body, ...options } = {}) {
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
+
+  // 401 = توكن منتهي/خاطئ، 403 = مفيش صلاحية
+  if (res.status === 401 || res.status === 403) {
+    const isAdminAction = localStorage.getItem("isAdmin") === "true";
+    // امسح الجلسة التالفة
+    setToken(null);
+    if (isAdminAction) {
+      localStorage.removeItem("isAdmin");
+      if (!location.pathname.includes("/admin-login")) {
+        // وجّه الأدمن لتسجيل الدخول
+        alert(res.status === 401 ? "⏰ انتهت جلسة الأدمن — سجّل دخول من جديد" : "🔒 هالحساب مو أدمن — سجّل دخول بحساب الأدمن");
+        location.href = "/admin-login";
+      }
+    }
+    const err = await res.json().catch(() => ({ error: res.status === 401 ? "جلسة منتهية" : "ممنوع" }));
+    throw new Error(err.error || "غير مصرح");
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "خطأ في الخادم" }));
     throw new Error(err.error || "خطأ غير معروف");

@@ -22,7 +22,7 @@ const iconFor = (name) => {
   return "📦";
 };
 
-export default function Hero3D({ categories = [], lang = "ar" }) {
+export default function Hero3D({ categories = [], lang = "ar", loading = false }) {
   const wrapRef = useRef(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
@@ -51,16 +51,15 @@ export default function Hero3D({ categories = [], lang = "ar" }) {
     .map(c => typeof c === "string" ? { name: c } : c)
     .slice(0, 6);
 
-  // placeholders بس إذا مش موجودة أقسام
-  const fillers = [
-    { name: lang === "ar" ? "ألعاب"     : "Toys",     icon: "🧸" },
-    { name: lang === "ar" ? "رضاعات"    : "Bottles",  icon: "🍼" },
-    { name: lang === "ar" ? "ألعاب خشبية" : "Wooden", icon: "🪀" },
-    { name: lang === "ar" ? "زحاليق"    : "Slides",   icon: "🛝" },
-    { name: lang === "ar" ? "تلوين"     : "Art",      icon: "🎨" },
-    { name: lang === "ar" ? "سيارات"    : "Cars",     icon: "🚗" },
-  ];
-  const list = items.length ? items : fillers;
+  const isLoading = loading;
+  const isEmpty = !loading && items.length === 0;
+
+  // لما يخلص التحميل وما في شي، بنعرض بطاقات فاضية "جاري الإعداد..."
+  const list = isLoading
+    ? Array.from({ length: 6 }, (_, i) => ({ __skeleton: true, id: `sk-${i}` }))
+    : items.length
+      ? items
+      : Array.from({ length: 6 }, (_, i) => ({ __empty: true, id: `em-${i}` }));
 
   return (
     <div ref={wrapRef} className="h3d-wrap" style={{
@@ -75,13 +74,46 @@ export default function Hero3D({ categories = [], lang = "ar" }) {
         transition: "transform .3s ease-out",
       }}>
         {list.map((c, i) => {
+          // بطاقة تحميل (skeleton)
+          if (c.__skeleton) {
+            return (
+              <div key={c.id} className="h3d-card h3d-skeleton" style={{ animationDelay: `${i * 0.2}s` }}>
+                <div className="h3d-img">
+                  <div className="h3d-sk-shimmer" />
+                </div>
+                <div className="h3d-info">
+                  <div className="h3d-sk-line" style={{ width: "70%" }} />
+                  <div className="h3d-sk-line" style={{ width: "40%", height: 8, marginTop: 5 }} />
+                </div>
+              </div>
+            );
+          }
+          // حالة فاضية (ما في أقسام بعد)
+          if (c.__empty) {
+            return (
+              <div key={c.id} className="h3d-card h3d-empty" style={{ animationDelay: `${i * 0.2}s` }}>
+                <div className="h3d-img">
+                  <div className="h3d-ph" style={{ opacity: .3 }}>
+                    <span style={{ fontSize: 32 }}>{i === 0 ? "🛍️" : "✨"}</span>
+                  </div>
+                </div>
+                <div className="h3d-info">
+                  <div className="h3d-name" style={{ opacity: .5 }}>
+                    {i === 0 ? (lang === "ar" ? "قريباً…" : "Soon…") : "—"}
+                  </div>
+                  <div className="h3d-price" style={{ opacity: .4 }}>✨</div>
+                </div>
+              </div>
+            );
+          }
+          // بطاقة قسم حقيقية
           const displayName = typeof c === "string" ? c : catName(c);
           const icon = c.icon || iconFor(c.name);
           const imgSrc = c.image || "";
           const slug = slugify(c.name || displayName);
-          const isReal = !!categories.length; // روابط حقيقية فقط لو الأقسام فعلية
-          const Inner = (
-            <>
+          return (
+            <Link key={(c.id || c.name || i) + "-" + i} to={`/category/${slug}`}
+              className="h3d-card" style={{ animationDelay: `${i * 0.2}s` }}>
               <div className="h3d-img">
                 {imgSrc ? (
                   <>
@@ -101,17 +133,7 @@ export default function Hero3D({ categories = [], lang = "ar" }) {
                 <div className="h3d-name">{displayName}</div>
                 <div className="h3d-price">{lang === "ar" ? "تسوّق ←" : "Shop →"}</div>
               </div>
-            </>
-          );
-          return isReal ? (
-            <Link key={(c.id || c.name || i) + "-" + i} to={`/category/${slug}`}
-              className="h3d-card" style={{ animationDelay: `${i * 0.2}s` }}>
-              {Inner}
             </Link>
-          ) : (
-            <div key={i} className="h3d-card" style={{ animationDelay: `${i * 0.2}s` }}>
-              {Inner}
-            </div>
           );
         })}
       </div>
@@ -244,6 +266,29 @@ const HERO3D_CSS = `
 }
 @keyframes h3dGlow1 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(20px,-20px); } }
 @keyframes h3dGlow2 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-15px,15px); } }
+
+/* ═══ Skeleton أثناء التحميل ═══ */
+.h3d-skeleton { cursor: default; }
+.h3d-skeleton:hover { transform: none; box-shadow: 0 20px 40px rgba(0,0,0,.35); border-color: rgba(255,255,255,.15); }
+.h3d-sk-shimmer {
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, rgba(255,255,255,.05) 0%, rgba(255,255,255,.15) 50%, rgba(255,255,255,.05) 100%);
+  background-size: 200% 100%;
+  animation: h3dShim 1.4s ease-in-out infinite;
+  border-radius: 12px;
+}
+.h3d-sk-line {
+  height: 10px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, rgba(255,255,255,.08) 0%, rgba(255,255,255,.18) 50%, rgba(255,255,255,.08) 100%);
+  background-size: 200% 100%;
+  animation: h3dShim 1.4s ease-in-out infinite;
+}
+@keyframes h3dShim { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+/* حالة فاضية */
+.h3d-empty { cursor: default; }
+.h3d-empty:hover { transform: none; box-shadow: 0 20px 40px rgba(0,0,0,.35); border-color: rgba(255,255,255,.15); }
 
 @media (max-width: 480px) {
   .h3d-wrap { max-width: 380px; }

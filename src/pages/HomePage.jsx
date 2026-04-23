@@ -99,7 +99,7 @@ export default function HomePage() {
   const isRtl     = lang === "ar";
   const user      = safeParse("user");
   const isAdmin   = localStorage.getItem("isAdmin") === "true";
-  const { categories: rawCats } = useCategories();
+  const { categories: rawCats, loading: catsLoading } = useCategories();
   const cats = rawCats.filter(c => c?.name && !c.hidden);
   const { products: allProds } = useProducts();
   const [scrolled, setScrolled] = useState(false);
@@ -305,7 +305,7 @@ export default function HomePage() {
 
           {/* شبكة 3D للأقسام */}
           <div className="hero-cards">
-            <Hero3D categories={cats} lang={lang} />
+            <Hero3D categories={cats} lang={lang} loading={catsLoading} />
           </div>
         </div>
       </section>
