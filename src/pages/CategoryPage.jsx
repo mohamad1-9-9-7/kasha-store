@@ -696,7 +696,7 @@ export default function CategoryPage() {
 
       {/* فتات الخبز Breadcrumbs */}
       <div style={{ background: "#fff", borderBottom: "1px solid #F1F5F9", padding: "10px 20px" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", fontSize: 12, color: "#64748B", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        <div style={{ maxWidth: 1600, margin: "0 auto", fontSize: 12, color: "#64748B", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <Link to="/home" style={{ color: "#6366F1", textDecoration: "none", fontWeight: 700 }}>
             {lang === "ar" ? "🏠 الرئيسية" : "🏠 Home"}
           </Link>
@@ -711,7 +711,7 @@ export default function CategoryPage() {
 
       {/* هيدر القسم */}
       <div className="cat-header" style={{ background: "linear-gradient(135deg,#0F172A,#1E1B4B)", padding: "36px 24px", color: "#fff" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+        <div style={{ maxWidth: 1600, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
           <div>
             <p style={{ color: "#818CF8", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{lang === "ar" ? "تسوّق من قسم" : "Shop from"}</p>
             <h1 style={{ fontSize: 28, fontWeight: 900, color: "#fff", margin: 0 }}>{categoryName}</h1>
@@ -722,7 +722,7 @@ export default function CategoryPage() {
         </div>
       </div>
 
-      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 20px" }}>
+      <main style={{ maxWidth: 1600, margin: "0 auto", padding: "24px 20px" }}>
 
         {/* شريط الأدوات */}
         {products.length > 0 && (

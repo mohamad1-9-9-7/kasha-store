@@ -8,6 +8,7 @@ import { C, shadow, safeParse, slugify, fmt, fmtPrice, priceVat, prodName, prodD
 import MiniNav from "../components/MiniNav";
 import { useProducts } from "../hooks/useProducts";
 import { useRatings, submitRating } from "../hooks/useRatings";
+import ProductGallery from "../components/ProductGallery";
 
 function useCountdown(endIso) {
   const [left, setLeft] = useState(() => endIso ? new Date(endIso) - Date.now() : 0);
@@ -274,8 +275,13 @@ export default function ProductDetails() {
         .thumb:hover { transform: scale(1.05); }
         .share-btn { transition: background .15s, transform .15s; }
         .share-btn:hover { transform: translateY(-2px); }
+        /* Responsive للصفحة كاملة */
+        @media(max-width:1024px){
+          .pd-main { padding: 0 20px !important; }
+        }
         @media(max-width:768px){
-          .pd-grid { grid-template-columns: 1fr !important; }
+          .pd-main { margin: 12px auto !important; padding: 0 12px !important; }
+          .pd-grid { grid-template-columns: 1fr !important; border-radius: 18px !important; }
           .pd-img  { min-height: 280px !important; max-height: 340px !important; }
           .pd-body { padding: 20px !important; }
           .pd-btns { flex-direction: column !important; }
@@ -283,61 +289,38 @@ export default function ProductDetails() {
           .related-grid { grid-template-columns: repeat(2,1fr) !important; }
         }
         @media(max-width:480px){
-          .related-grid { grid-template-columns: repeat(2,1fr) !important; }
+          .pd-main { padding: 0 8px !important; }
+          .pd-grid { border-radius: 14px !important; }
+          .related-grid { grid-template-columns: repeat(2,1fr) !important; gap: 10px !important; }
         }
       `}</style>
 
       <MiniNav backTo={backCat ? `/category/${backCat}` : "/home"} />
 
-      <main style={{ maxWidth: 1060, margin: "32px auto", padding: "0 20px" }}>
+      <main className="pd-main" style={{ maxWidth: "100%", margin: "24px auto", padding: "0 32px" }}>
 
         {/* ═══ المنتج الرئيسي ═══ */}
         <div className="pd-grid" style={{ background: "#fff", borderRadius: 24, border: "1px solid #F1F5F9", boxShadow: shadow.md, overflow: "hidden", display: "grid", gridTemplateColumns: "1fr 1fr", animation: "fadeUp .4s ease both" }}>
 
-          {/* الصورة */}
-          <div style={{ background: "#F8FAFC", display: "flex", flexDirection: "column" }}>
-            <div className="pd-img" style={{ position: "relative", flex: 1, minHeight: 380 }}>
-              {!imgLoaded && (
-                <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#F1F5F9" }}>
-                  <div style={{ fontSize: 48, opacity: .3 }}>📦</div>
-                </div>
-              )}
-              <img
-                src={(images[activeImg] || "").trim() || "https://placehold.co/600x500?text=صورة"}
-                alt={prodName(product)}
-                onLoad={() => setImgLoaded(true)}
-                style={{ width: "100%", height: "100%", minHeight: 380, objectFit: "cover", display: "block", opacity: imgLoaded ? 1 : 0, transition: "opacity .3s" }}
-                onError={e => { e.currentTarget.src = "https://placehold.co/600x500?text=صورة"; setImgLoaded(true); }}
-              />
-              {pct && (
-                <span style={{ position: "absolute", top: 16, right: 16, background: "#EF4444", color: "#fff", borderRadius: 999, padding: "6px 14px", fontWeight: 800, fontSize: 13 }}>
-                  وفر {pct}%
-                </span>
-              )}
+          {/* الصورة — معرض احترافي */}
+          <div style={{ background: "#fff", display: "flex", flexDirection: "column", position: "relative" }}>
+            <ProductGallery
+              images={images}
+              alt={prodName(product)}
+              badge={pct ? `وفر ${pct}%` : null}
+            >
               {/* زر المفضلة */}
-              <button onClick={() => toggle(product)}
-                style={{ position: "absolute", top: 12, left: 12, width: 42, height: 42, borderRadius: "50%", background: "#fff", border: "none", cursor: "pointer", fontSize: 20, boxShadow: "0 2px 10px rgba(0,0,0,.15)", display: "flex", alignItems: "center", justifyContent: "center", transition: "transform .15s", zIndex: 2 }}
+              <button onClick={(e) => { e.stopPropagation(); toggle(product); }}
+                style={{ position: "absolute", top: 14, insetInlineEnd: 14, width: 42, height: 42, borderRadius: "50%", background: "#fff", border: "none", cursor: "pointer", fontSize: 20, boxShadow: "0 4px 14px rgba(0,0,0,.18)", display: "flex", alignItems: "center", justifyContent: "center", transition: "transform .15s", zIndex: 4 }}
                 onMouseOver={e => e.currentTarget.style.transform="scale(1.12)"} onMouseOut={e => e.currentTarget.style.transform="scale(1)"}>
                 {wishlisted ? "❤️" : "🤍"}
               </button>
               {/* 🔥 عدد المشاهدين */}
-              <div style={{ position: "absolute", bottom: 12, right: 12, background: "rgba(15,23,42,.75)", backdropFilter: "blur(6px)", color: "#fff", borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ position: "absolute", bottom: 14, insetInlineEnd: 14, background: "rgba(15,23,42,.75)", backdropFilter: "blur(6px)", color: "#fff", borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, zIndex: 3 }}>
                 <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#10B981", display: "inline-block", animation: "pulse 1.5s infinite" }} />
                 {viewers} {lang === "ar" ? "يشاهدون الآن" : "watching now"}
               </div>
-            </div>
-            {/* Thumbnails */}
-            {images.length > 1 && (
-              <div style={{ display: "flex", gap: 8, padding: "12px 16px", overflowX: "auto", background: "#fff", borderTop: "1px solid #F1F5F9" }}>
-                {images.map((img, i) => (
-                  <img key={i} src={img} alt={`صورة ${i+1}`} onClick={() => { setActiveImg(i); setImgLoaded(false); }}
-                    className="thumb"
-                    style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 10, border: `2.5px solid ${activeImg === i ? "#6366F1" : "#E2E8F0"}`, flexShrink: 0 }}
-                    onError={e => e.currentTarget.style.display="none"}
-                  />
-                ))}
-              </div>
-            )}
+            </ProductGallery>
           </div>
 
           {/* التفاصيل */}

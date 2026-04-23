@@ -28,7 +28,7 @@ export default function WishlistPage() {
       `}</style>
       <MiniNav title={t("wishlist_title")} backTo="/home" />
 
-      <main style={{ maxWidth: 1100, margin: "28px auto", padding: "0 20px", animation: "fadeUp .4s ease both" }}>
+      <main style={{ maxWidth: 1600, margin: "20px auto", padding: "0 24px", animation: "fadeUp .4s ease both" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 900, color: "#0F172A", marginBottom: 4 }}>{t("wishlist_title")}</h1>

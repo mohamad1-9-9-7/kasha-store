@@ -400,7 +400,7 @@ export default function CartPage() {
 
       <MiniNav title={`${t("cart_title")} (${(items || []).length})`} backTo="/home" showCart={false} />
 
-      <main style={{ maxWidth: 1100, margin: "28px auto", padding: "0 20px", animation: "fadeUp .4s ease both" }}>
+      <main style={{ maxWidth: 1600, margin: "20px auto", padding: "0 24px", animation: "fadeUp .4s ease both" }}>
 
         {/* شريط ضيف */}
         {!user && items?.length > 0 && (

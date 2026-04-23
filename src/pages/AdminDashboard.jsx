@@ -79,7 +79,7 @@ export default function AdminDashboard() {
   const [orders,     setOrders]     = useState([]);
 
   /* فورم الأقسام */
-  const [catForm,  setCatForm]  = useState({ name: "", image: "" });
+  const [catForm,  setCatForm]  = useState({ name: "", nameEn: "", image: "" });
   const [catEdit,  setCatEdit]  = useState(null);
 
   /* فورم المنتجات */
@@ -223,12 +223,17 @@ export default function AdminDashboard() {
   const saveCat = async () => {
     if (!catForm.name.trim()) return alert("أدخل اسم القسم");
     try {
+      const payload = {
+        name: catForm.name.trim(),
+        nameEn: (catForm.nameEn || "").trim(),
+        image: catForm.image,
+      };
       if (catEdit !== null) {
-        await updateCategory(catEdit, { name: catForm.name.trim(), image: catForm.image });
+        await updateCategory(catEdit, payload);
       } else {
-        await addCategory({ name: catForm.name.trim(), image: catForm.image });
+        await addCategory(payload);
       }
-      setCatForm({ name: "", image: "" }); setCatEdit(null);
+      setCatForm({ name: "", nameEn: "", image: "" }); setCatEdit(null);
       await refreshCategories();
     } catch (e) {
       alert("❌ فشل الحفظ: " + (e.message || ""));
@@ -798,26 +803,30 @@ export default function AdminDashboard() {
               <h2 style={{ fontWeight: 800, fontSize: 17, color: "#0F172A", marginBottom: 20 }}>
                 {catEdit !== null ? "✏️ تعديل القسم" : "➕ إضافة قسم جديد"}
               </h2>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 18 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 12 }}>
                 <div>
-                  <label style={lbl}>اسم القسم</label>
+                  <label style={lbl}>اسم القسم (عربي) <span style={{ color: "#EF4444" }}>*</span></label>
                   <input placeholder="مثال: عطور" value={catForm.name} onChange={e => setCatForm(f => ({ ...f, name: e.target.value }))} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
                 </div>
                 <div>
-                  <label style={lbl}>صورة القسم</label>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <input placeholder="https://..." value={catForm.image} onChange={e => setCatForm(f => ({ ...f, image: e.target.value }))} style={{ ...inputBase, flex: 1 }} onFocus={focusIn} onBlur={focusOut} />
-                    <label style={{ background: "#EEF2FF", color: "#6366F1", border: "1.5px solid #6366F1", borderRadius: r.md, padding: "10px 14px", fontWeight: 700, cursor: catUploading ? "wait" : "pointer", fontSize: 13, whiteSpace: "nowrap", opacity: catUploading ? 0.6 : 1 }}>
-                      {catUploading ? "⏳ جاري الرفع..." : "📷 رفع"}
-                      <input type="file" accept="image/*" disabled={catUploading} style={{ display: "none" }} onChange={async e => { const f = e.target.files?.[0]; if (f) { const url = await handleImageUpload(f, setCatUploading); if (url) setCatForm(fr => ({ ...fr, image: url })); e.target.value = ""; } }} />
-                    </label>
-                  </div>
+                  <label style={lbl}>Name (English) <span style={{ fontSize: 11, color: "#94A3B8", fontWeight: 600 }}>(اختياري)</span></label>
+                  <input placeholder="e.g. Perfumes" value={catForm.nameEn} onChange={e => setCatForm(f => ({ ...f, nameEn: e.target.value }))} style={{ ...inputBase, direction: "ltr", textAlign: "left" }} onFocus={focusIn} onBlur={focusOut} />
+                </div>
+              </div>
+              <div style={{ marginBottom: 18 }}>
+                <label style={lbl}>صورة القسم</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input placeholder="https://..." value={catForm.image} onChange={e => setCatForm(f => ({ ...f, image: e.target.value }))} style={{ ...inputBase, flex: 1 }} onFocus={focusIn} onBlur={focusOut} />
+                  <label style={{ background: "#EEF2FF", color: "#6366F1", border: "1.5px solid #6366F1", borderRadius: r.md, padding: "10px 14px", fontWeight: 700, cursor: catUploading ? "wait" : "pointer", fontSize: 13, whiteSpace: "nowrap", opacity: catUploading ? 0.6 : 1 }}>
+                    {catUploading ? "⏳ جاري الرفع..." : "📷 رفع"}
+                    <input type="file" accept="image/*" disabled={catUploading} style={{ display: "none" }} onChange={async e => { const f = e.target.files?.[0]; if (f) { const url = await handleImageUpload(f, setCatUploading); if (url) setCatForm(fr => ({ ...fr, image: url })); e.target.value = ""; } }} />
+                  </label>
                 </div>
               </div>
               {catForm.image && <img src={catForm.image} alt="معاينة" style={{ width: 100, height: 80, objectFit: "cover", borderRadius: r.md, marginBottom: 16, border: "1px solid #E2E8F0" }} onError={e => e.currentTarget.style.display = "none"} />}
               <div style={{ display: "flex", gap: 10 }}>
                 <button onClick={saveCat} style={{ ...btnPrimary, padding: "11px 24px" }}>{catEdit !== null ? "تحديث القسم" : "حفظ القسم"}</button>
-                {catEdit !== null && <button onClick={() => { setCatEdit(null); setCatForm({ name: "", image: "" }); }} style={{ background: "#F8FAFC", color: "#64748B", border: "1.5px solid #E2E8F0", borderRadius: r.md, padding: "11px 20px", fontWeight: 700, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>إلغاء</button>}
+                {catEdit !== null && <button onClick={() => { setCatEdit(null); setCatForm({ name: "", nameEn: "", image: "" }); }} style={{ background: "#F8FAFC", color: "#64748B", border: "1.5px solid #E2E8F0", borderRadius: r.md, padding: "11px 20px", fontWeight: 700, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>إلغاء</button>}
               </div>
             </div>
 
@@ -839,7 +848,7 @@ export default function AdminDashboard() {
                       <div>
                         <div style={{ fontWeight: 700, color: "#0F172A", marginBottom: 8 }}>{cat.name}</div>
                         <div style={{ display: "flex", gap: 6 }}>
-                          <button className="icon-btn" onClick={() => { setCatEdit(cat.id); setCatForm({ name: cat.name, image: cat.image || "" }); }} style={{ background: "#EEF2FF", color: "#6366F1", borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 700, fontFamily: "'Tajawal',sans-serif" }}>✏️ تعديل</button>
+                          <button className="icon-btn" onClick={() => { setCatEdit(cat.id); setCatForm({ name: cat.name || "", nameEn: cat.nameEn || "", image: cat.image || "" }); }} style={{ background: "#EEF2FF", color: "#6366F1", borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 700, fontFamily: "'Tajawal',sans-serif" }}>✏️ تعديل</button>
                           <button className="icon-btn" onClick={() => { if (window.confirm(`حذف "${cat.name}"؟`)) deleteCategory(cat.id); }} style={{ background: "#FEF2F2", color: "#EF4444", borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 700, fontFamily: "'Tajawal',sans-serif" }}>🗑️ حذف</button>
                         </div>
                       </div>

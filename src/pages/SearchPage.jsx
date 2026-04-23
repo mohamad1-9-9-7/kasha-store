@@ -29,7 +29,7 @@ export default function SearchPage() {
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}} .prod-card{transition:transform .22s ease,box-shadow .22s ease} .prod-card:hover{transform:translateY(-6px);box-shadow:0 20px 44px rgba(0,0,0,.12)!important}`}</style>
       <MiniNav title={q ? `${t("search_for")} "${q}"` : t("search_results")} backTo="/home" />
 
-      <main style={{ maxWidth: 1100, margin: "28px auto", padding: "0 20px" }}>
+      <main style={{ maxWidth: 1600, margin: "20px auto", padding: "0 24px" }}>
 
         {/* سيرش بار */}
         <form onSubmit={search} style={{ marginBottom: 32, display: "flex", gap: 12 }}>

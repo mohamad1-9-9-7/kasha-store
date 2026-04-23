@@ -197,7 +197,7 @@ export default function HomePage() {
         position: "sticky", top: 0, zIndex: 400,
         transition: "box-shadow .3s ease, border-color .3s ease",
       }}>
-        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px", height: 70, display: "flex", alignItems: "center", gap: 16 }}>
+        <div style={{ maxWidth: 1600, margin: "0 auto", padding: "0 24px", height: 70, display: "flex", alignItems: "center", gap: 16 }}>
 
           {/* لوغو */}
           <Link to="/home" style={{ fontSize: 26, fontWeight: 900, flexShrink: 0, lineHeight: 1 }}>
@@ -246,7 +246,7 @@ export default function HomePage() {
         {/* شريط الأقسام */}
         {cats.length > 0 && (
           <div style={{ borderTop: "1px solid #F1F5F9", background: "#fff" }}>
-            <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", overflowX: "auto", gap: 2 }}>
+            <div style={{ maxWidth: 1600, margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", overflowX: "auto", gap: 2 }}>
               {cats.map((cat, i) => {
                 const icon = cat.icon || iconFor(cat.name);
                 return (
@@ -271,7 +271,7 @@ export default function HomePage() {
         <div className="hero-dot" style={{ width: 300, height: 300, background: "rgba(236,72,153,.12)", bottom: -80, left: -60, filter: "blur(60px)" }} />
         <div className="hero-dot" style={{ width: 200, height: 200, background: "rgba(14,165,233,.18)", top: "30%", left: "40%", filter: "blur(50px)" }} />
 
-        <div className="hero-grid" style={{ maxWidth: 1280, margin: "0 auto", position: "relative", zIndex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48, alignItems: "center" }}>
+        <div className="hero-grid" style={{ maxWidth: 1600, margin: "0 auto", position: "relative", zIndex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48, alignItems: "center" }}>
           {/* نص يمين */}
           <div style={{ textAlign: isRtl ? "right" : "left" }}>
             <div className="fade-up" style={{ display: "inline-block", background: "rgba(99,102,241,.25)", border: "1px solid rgba(99,102,241,.4)", borderRadius: 999, padding: "6px 16px", fontSize: 13, color: "#A5B4FC", fontWeight: 700, marginBottom: 20 }}>
@@ -312,7 +312,7 @@ export default function HomePage() {
 
       {/* ── شريط المميزات ── */}
       <section style={{ background: "#fff", borderBottom: "1px solid #F1F5F9" }}>
-        <div className="features-grid" style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px", display: "grid", gridTemplateColumns: "repeat(4,1fr)" }}>
+        <div className="features-grid" style={{ maxWidth: 1600, margin: "0 auto", padding: "0 24px", display: "grid", gridTemplateColumns: "repeat(4,1fr)" }}>
           {(isRtl ? FEATURES_AR : FEATURES_EN).map((f, i) => (
             <div key={i} className={`feat-card${i < 3 ? " feat-border" : ""}`} style={{ display: "flex", alignItems: "center", gap: 14, padding: "22px 16px", borderLeft: i < 3 ? "1px solid #F1F5F9" : "none" }}>
               <div style={{ width: 46, height: 46, borderRadius: 12, background: "linear-gradient(135deg,#EEF2FF,#F5F3FF)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
@@ -329,7 +329,7 @@ export default function HomePage() {
 
       {/* ── باندل بيلدر بانر ── */}
       <section style={{ background: "#fff", padding: "32px 24px 0" }}>
-        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+        <div style={{ maxWidth: 1600, margin: "0 auto" }}>
           <Link to="/bundle" style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
             background: "linear-gradient(135deg, #6366F1 0%, #EC4899 55%, #F59E0B 100%)",
@@ -379,7 +379,7 @@ export default function HomePage() {
       {/* ── منتجات التخفيض ── */}
       {saleProds.length > 0 && (
         <section style={{ background: "#fff", borderTop: "1px solid #F1F5F9", padding: "52px 24px" }}>
-          <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+          <div style={{ maxWidth: 1600, margin: "0 auto" }}>
             <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32 }}>
               <div>
                 <p style={{ fontSize: 13, fontWeight: 700, color: "#EF4444", marginBottom: 6, letterSpacing: ".5px" }}>🔥 SALE</p>
@@ -418,7 +418,7 @@ export default function HomePage() {
       {/* ── المنتجات المميزة ── */}
       {featuredProds.length > 0 && (
         <section style={{ padding: "52px 24px", background: "#F8FAFC" }}>
-          <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+          <div style={{ maxWidth: 1600, margin: "0 auto" }}>
             <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32 }}>
               <div>
                 <p style={{ fontSize: 13, fontWeight: 700, color: "#6366F1", marginBottom: 6, letterSpacing: ".5px" }}>⭐ FEATURED</p>
@@ -464,7 +464,7 @@ export default function HomePage() {
 
       {/* ── فوتر ── */}
       <footer style={{ background: "#0F172A", padding: "40px 24px 24px" }}>
-        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+        <div style={{ maxWidth: 1600, margin: "0 auto" }}>
           <div className="footer-top" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20, marginBottom: 32 }}>
             <div>
               <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 8 }}>
