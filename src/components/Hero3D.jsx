@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { catName } from "../Theme";
+import { Link } from "react-router-dom";
+import { catName, slugify } from "../Theme";
 
 /**
  * شبكة أقسام 3D خفيفة — بدون Three.js.
@@ -77,8 +78,10 @@ export default function Hero3D({ categories = [], lang = "ar" }) {
           const displayName = typeof c === "string" ? c : catName(c);
           const icon = c.icon || iconFor(c.name);
           const imgSrc = c.image || "";
-          return (
-            <div key={(c.id || c.name || i) + "-" + i} className="h3d-card" style={{ animationDelay: `${i * 0.2}s` }}>
+          const slug = slugify(c.name || displayName);
+          const isReal = !!categories.length; // روابط حقيقية فقط لو الأقسام فعلية
+          const Inner = (
+            <>
               <div className="h3d-img">
                 {imgSrc ? (
                   <>
@@ -96,8 +99,18 @@ export default function Hero3D({ categories = [], lang = "ar" }) {
               </div>
               <div className="h3d-info">
                 <div className="h3d-name">{displayName}</div>
-                <div className="h3d-price">✨</div>
+                <div className="h3d-price">{lang === "ar" ? "تسوّق ←" : "Shop →"}</div>
               </div>
+            </>
+          );
+          return isReal ? (
+            <Link key={(c.id || c.name || i) + "-" + i} to={`/category/${slug}`}
+              className="h3d-card" style={{ animationDelay: `${i * 0.2}s` }}>
+              {Inner}
+            </Link>
+          ) : (
+            <div key={i} className="h3d-card" style={{ animationDelay: `${i * 0.2}s` }}>
+              {Inner}
             </div>
           );
         })}
