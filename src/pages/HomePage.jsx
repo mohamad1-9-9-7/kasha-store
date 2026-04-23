@@ -303,9 +303,9 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* شبكة 3D للمنتجات */}
+          {/* شبكة 3D للأقسام */}
           <div className="hero-cards">
-            <Hero3D products={(allProds || []).filter(p => p.featured || p.image).slice(0, 6)} lang={lang} />
+            <Hero3D categories={cats} lang={lang} />
           </div>
         </div>
       </section>
@@ -375,51 +375,6 @@ export default function HomePage() {
           </Link>
         </div>
       </section>
-
-      {/* ── شبكة الأقسام ── */}
-      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "52px 24px 72px" }}>
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 36 }}>
-          <div>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "#6366F1", marginBottom: 6, letterSpacing: ".5px" }}>CATEGORIES</p>
-            <h2 style={{ fontSize: 26, fontWeight: 900, color: "#0F172A", lineHeight: 1 }}>{t("section_cats")}</h2>
-          </div>
-          <span style={{ background: "#EEF2FF", color: "#6366F1", borderRadius: 999, padding: "5px 14px", fontSize: 13, fontWeight: 700 }}>{cats.length} {isRtl ? "قسم" : "categories"}</span>
-        </div>
-
-        {cats.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "80px 20px", background: "#fff", borderRadius: 24, border: "2px dashed #E2E8F0" }}>
-            <div style={{ fontSize: 60, marginBottom: 16 }}>🛍️</div>
-            <h3 style={{ fontSize: 18, fontWeight: 800, color: "#1E293B", marginBottom: 8 }}>{isRtl ? "لا توجد أقسام بعد" : "No categories yet"}</h3>
-            <p style={{ color: "#94A3B8" }}>{isRtl ? "قم بإضافة أقسام من لوحة التحكم" : "Add categories from the dashboard"}</p>
-          </div>
-        ) : (
-          <div className="cats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))", gap: 20 }}>
-            {cats.map((cat, i) => {
-              const grad = GRAD[i % GRAD.length];
-              const icon = cat.icon || iconFor(cat.name);
-              return (
-                <Link key={i} to={`/category/${slugify(cat.name)}`} className="cat-card"
-                  style={{ display: "block", borderRadius: 20, overflow: "hidden", background: "#fff", boxShadow: "0 2px 12px rgba(0,0,0,.06)", border: "1px solid #F1F5F9" }}>
-                  <div style={{ aspectRatio: "1/1", background: cat.image ? "#F8FAFC" : `linear-gradient(${grad})`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
-                    {cat.image ? (
-                      <img src={cat.image} alt={cat.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => { e.currentTarget.style.display = "none"; }} />
-                    ) : (
-                      <>
-                        <div style={{ position: "absolute", width: "150%", height: "150%", background: "radial-gradient(circle at 70% 70%, rgba(255,255,255,.15), transparent 60%)" }} />
-                        <span style={{ fontSize: 56, position: "relative", zIndex: 1, filter: "drop-shadow(0 4px 8px rgba(0,0,0,.2))" }}>{icon}</span>
-                      </>
-                    )}
-                  </div>
-                  <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ fontWeight: 800, fontSize: 14, color: "#1E293B" }}>{catName(cat)}</div>
-                    <div style={{ width: 28, height: 28, borderRadius: 8, background: `linear-gradient(${grad})`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 900 }}>←</div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </main>
 
       {/* ── منتجات التخفيض ── */}
       {saleProds.length > 0 && (

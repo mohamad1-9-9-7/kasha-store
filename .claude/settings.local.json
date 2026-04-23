@@ -73,7 +73,8 @@
       "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/pages/AdminDashboard.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('OK'\\); } catch\\(e\\) { console.log\\('ERR line', e.loc?.line, ':', e.message\\); }\")",
       "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/pages/AuthPage.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('OK'\\); } catch\\(e\\) { console.log\\('ERR line', e.loc?.line, ':', e.message\\); }\")",
       "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/pages/HomePage.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('HomePage OK'\\); } catch\\(e\\) { console.log\\('ERR line', e.loc?.line, ':', e.message\\); }\")",
-      "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/components/Hero3D.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('Hero3D OK'\\); } catch\\(e\\) { console.log\\('ERR line', e.loc?.line, ':', e.message\\); }\")"
+      "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/components/Hero3D.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('Hero3D OK'\\); } catch\\(e\\) { console.log\\('ERR line', e.loc?.line, ':', e.message\\); }\")",
+      "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/pages/HomePage.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('OK'\\); } catch\\(e\\) { console.log\\('ERR line', e.loc?.line, ':', e.message\\); }\")"
     ]
   }
 }

@@ -1,15 +1,27 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { fmtPrice, prodName } from "../Theme";
+import { catName } from "../Theme";
 
 /**
- * شبكة منتجات 3D خفيفة — بدون Three.js.
- * - منظور perspective + rotate3d للبطاقات
+ * شبكة أقسام 3D خفيفة — بدون Three.js.
+ * - منظور perspective + rotate للبطاقات
  * - حركة عائمة (floating) لكل بطاقة
  * - Parallax خفيف يتبع الماوس
- * - Hover: البطاقة تطلع لقدام وتستوي
+ * - زينة بصرية بحتة — بدون أي نقرات أو روابط
  */
-export default function Hero3D({ products = [], lang = "ar" }) {
+const ICON_MAP = {
+  "إلكتر": "💻", "جوال": "📱", "ساعة": "⌚", "سيار": "🚗",
+  "عطر": "🌹", "ألعاب": "🧸", "ملاب": "👗", "منزل": "🏠",
+  "رياض": "⚽", "هدا": "🎁", "اكسسوار": "💍",
+  "رضاع": "🍼", "ألعاب خشبية": "🪀", "زحاليق": "🛝",
+  "تلوين": "🎨", "دمى": "🧸", "عربا": "🚼",
+};
+const iconFor = (name) => {
+  const s = (name || "").toLowerCase();
+  for (const [k, v] of Object.entries(ICON_MAP)) if (s.includes(k)) return v;
+  return "📦";
+};
+
+export default function Hero3D({ categories = [], lang = "ar" }) {
   const wrapRef = useRef(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
@@ -22,7 +34,6 @@ export default function Hero3D({ products = [], lang = "ar" }) {
       const cy = r.top + r.height / 2;
       const dx = (e.clientX - cx) / r.width;
       const dy = (e.clientY - cy) / r.height;
-      // تأثير خفيف (10 درجات كحد أقصى)
       setTilt({ x: -dy * 12, y: dx * 12 });
     };
     const onLeave = () => setTilt({ x: 0, y: 0 });
@@ -34,17 +45,19 @@ export default function Hero3D({ products = [], lang = "ar" }) {
     };
   }, []);
 
-  // خُذ أول 6 منتجات
-  const items = (products || []).slice(0, 6);
+  // خذ أول 6 أقسام من القائمة الفعلية
+  const items = (categories || [])
+    .map(c => typeof c === "string" ? { name: c } : c)
+    .slice(0, 6);
 
-  // إذا ما في منتجات، استخدم placeholders
+  // placeholders بس إذا مش موجودة أقسام
   const fillers = [
-    { id: "p1", image: "", placeholder: "🎮", label: lang === "ar" ? "ألعاب" : "Toys" },
-    { id: "p2", image: "", placeholder: "🍼", label: lang === "ar" ? "رضاعات" : "Bottles" },
-    { id: "p3", image: "", placeholder: "🧸", label: lang === "ar" ? "دُمى" : "Plush" },
-    { id: "p4", image: "", placeholder: "🛝", label: lang === "ar" ? "زحاليق" : "Slides" },
-    { id: "p5", image: "", placeholder: "🎨", label: lang === "ar" ? "تلوين" : "Art" },
-    { id: "p6", image: "", placeholder: "🚗", label: lang === "ar" ? "سيارات" : "Cars" },
+    { name: lang === "ar" ? "ألعاب"     : "Toys",     icon: "🧸" },
+    { name: lang === "ar" ? "رضاعات"    : "Bottles",  icon: "🍼" },
+    { name: lang === "ar" ? "ألعاب خشبية" : "Wooden", icon: "🪀" },
+    { name: lang === "ar" ? "زحاليق"    : "Slides",   icon: "🛝" },
+    { name: lang === "ar" ? "تلوين"     : "Art",      icon: "🎨" },
+    { name: lang === "ar" ? "سيارات"    : "Cars",     icon: "🚗" },
   ];
   const list = items.length ? items : fillers;
 
@@ -60,33 +73,30 @@ export default function Hero3D({ products = [], lang = "ar" }) {
         transform: `rotateX(${12 + tilt.x}deg) rotateY(${-6 + tilt.y}deg) rotateZ(-2deg)`,
         transition: "transform .3s ease-out",
       }}>
-        {list.map((p, i) => {
-          const imgSrc = p.image || "";
-          return p.id && products.length ? (
-            <Link key={p.id} to={`/product/${p.id}`} className="h3d-card" style={{ animationDelay: `${i * 0.2}s` }}>
+        {list.map((c, i) => {
+          const displayName = typeof c === "string" ? c : catName(c);
+          const icon = c.icon || iconFor(c.name);
+          const imgSrc = c.image || "";
+          return (
+            <div key={(c.id || c.name || i) + "-" + i} className="h3d-card" style={{ animationDelay: `${i * 0.2}s` }}>
               <div className="h3d-img">
-                {imgSrc
-                  ? <img src={imgSrc} alt={prodName(p)} onError={(e) => { e.currentTarget.style.display = "none"; e.currentTarget.nextElementSibling.style.display = "flex"; }} />
-                  : null}
-                <div className="h3d-ph" style={{ display: imgSrc ? "none" : "flex" }}>
-                  <span>📦</span>
-                </div>
+                {imgSrc ? (
+                  <>
+                    <img src={imgSrc} alt={displayName}
+                      onError={(e) => { e.currentTarget.style.display = "none"; e.currentTarget.nextElementSibling.style.display = "flex"; }} />
+                    <div className="h3d-ph" style={{ display: "none" }}>
+                      <span style={{ fontSize: 40 }}>{icon}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="h3d-ph">
+                    <span style={{ fontSize: 40 }}>{icon}</span>
+                  </div>
+                )}
               </div>
               <div className="h3d-info">
-                <div className="h3d-name">{prodName(p)}</div>
-                <div className="h3d-price">{fmtPrice(p.price)}</div>
-              </div>
-            </Link>
-          ) : (
-            <div key={p.id || i} className="h3d-card" style={{ animationDelay: `${i * 0.2}s` }}>
-              <div className="h3d-img">
-                <div className="h3d-ph">
-                  <span style={{ fontSize: 40 }}>{p.placeholder || "📦"}</span>
-                </div>
-              </div>
-              <div className="h3d-info">
-                <div className="h3d-name">{p.label}</div>
-                <div className="h3d-price" style={{ opacity: .6 }}>✨</div>
+                <div className="h3d-name">{displayName}</div>
+                <div className="h3d-price">✨</div>
               </div>
             </div>
           );
