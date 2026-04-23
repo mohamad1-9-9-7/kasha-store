@@ -344,11 +344,12 @@ const AUTH_CSS = `
   justify-content: center;
   align-items: flex-start;
   transition: opacity .5s ease, transform .7s ease;
+  pointer-events: none;
 }
-.auth-welcome-login    { opacity: 1; }
-.auth-welcome-register { opacity: 0; transform: scale(.95); }
-.auth-card.is-register .auth-welcome-login    { opacity: 0; transform: scale(.95); }
-.auth-card.is-register .auth-welcome-register { opacity: 1; transform: scale(1); }
+.auth-welcome-login    { opacity: 1; pointer-events: auto; }
+.auth-welcome-register { opacity: 0; transform: scale(.95); pointer-events: none; }
+.auth-card.is-register .auth-welcome-login    { opacity: 0; transform: scale(.95); pointer-events: none; }
+.auth-card.is-register .auth-welcome-register { opacity: 1; transform: scale(1); pointer-events: auto; }
 
 /* زر شبحي داخل لوحة الترحيب */
 .auth-ghost-btn {

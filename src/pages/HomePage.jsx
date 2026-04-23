@@ -7,6 +7,7 @@ import { useCategories } from "../hooks/useCategories";
 import { useProducts } from "../hooks/useProducts";
 import LangToggle from "../components/LangToggle";
 import SearchAutocomplete from "../components/SearchAutocomplete";
+import Hero3D from "../components/Hero3D";
 
 /* ─── أيقونات السوشيال ─── */
 const TikTokIcon = ({ size = 24 }) => (
@@ -302,27 +303,9 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* كروت يسار */}
-          <div className="hero-cards" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            {(isRtl ? [
-              { emoji: "🔥", label: "عروض حصرية", sub: "خصومات يومية", color: "#EF4444" },
-              { emoji: "📦", label: "منتجات جديدة", sub: "تحديث مستمر", color: "#6366F1" },
-              { emoji: "⚡", label: "توصيل سريع", sub: "خلال 24 ساعة", color: "#F59E0B" },
-              { emoji: "💎", label: "جودة عالية", sub: "ضمان الأصالة", color: "#10B981" },
-            ] : [
-              { emoji: "🔥", label: "Exclusive Deals", sub: "Daily discounts", color: "#EF4444" },
-              { emoji: "📦", label: "New Products", sub: "Constantly updated", color: "#6366F1" },
-              { emoji: "⚡", label: "Fast Delivery", sub: "Within 24 hours", color: "#F59E0B" },
-              { emoji: "💎", label: "Premium Quality", sub: "Authenticity guaranteed", color: "#10B981" },
-            ]).map((c, i) => (
-              <div key={i} style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 16, padding: "20px 16px", backdropFilter: "blur(12px)", display: "flex", flexDirection: "column", gap: 8, transition: "background .2s" }}
-                onMouseOver={e => e.currentTarget.style.background = "rgba(255,255,255,.1)"}
-                onMouseOut={e => e.currentTarget.style.background = "rgba(255,255,255,.06)"}>
-                <span style={{ fontSize: 28 }}>{c.emoji}</span>
-                <div style={{ fontWeight: 800, fontSize: 14, color: "#fff" }}>{c.label}</div>
-                <div style={{ fontSize: 12, color: "#94A3B8" }}>{c.sub}</div>
-              </div>
-            ))}
+          {/* شبكة 3D للمنتجات */}
+          <div className="hero-cards">
+            <Hero3D products={(allProds || []).filter(p => p.featured || p.image).slice(0, 6)} lang={lang} />
           </div>
         </div>
       </section>
