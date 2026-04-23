@@ -28,6 +28,13 @@ const DEFAULTS = {
   tiktokPixelId: "",     // e.g. ABCDEFGHIJ1234567890
   // Shipping zones: JSON string of [{ zone, emirates: [...], fee, freeOver, perKg }]
   shippingZones: "",
+  // إشعارات الأدمن عند أي طلب جديد (اختياري — حط أي واحد أو كلهم)
+  adminWebhookUrl: "",     // Zapier / Make / n8n / Discord / Slack
+  waCloudToken: "",        // WhatsApp Cloud API — Access Token
+  waCloudPhoneId: "",      // WhatsApp Cloud API — Phone Number ID
+  waAdminPhone: "",        // رقم الأدمن (مع رمز الدولة)
+  telegramBotToken: "",    // Telegram Bot Token
+  telegramChatId: "",      // Telegram Chat ID
 };
 
 // key → type
@@ -41,6 +48,8 @@ const FIELD_TYPES = {
   vatEnabled: "bool", vatPercent: "number", vatIncluded: "bool",
   fbPixelId: "string", gaMeasurementId: "string", tiktokPixelId: "string",
   shippingZones: "string",
+  adminWebhookUrl: "string", waCloudToken: "string", waCloudPhoneId: "string",
+  waAdminPhone: "string", telegramBotToken: "string", telegramChatId: "string",
 };
 
 function coerce(val, type) {
