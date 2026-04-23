@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { catName, slugify } from "../Theme";
 
 /**
@@ -24,7 +23,6 @@ const iconFor = (name) => {
 
 export default function Hero3D({ categories = [], lang = "ar", loading = false }) {
   const wrapRef = useRef(null);
-  const navigate = useNavigate();
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -113,21 +111,20 @@ export default function Hero3D({ categories = [], lang = "ar", loading = false }
           const imgSrc = c.image || "";
           // استخدم الاسم العربي دائماً للـ slug — عشان لا يتغير عند تبديل اللغة
           const slug = slugify(c.name || c.nameEn || displayName);
-          const href = `/category/${encodeURIComponent(slug)}`;
-          const handleClick = (e) => {
-            // نستخدم navigate يدوياً بدل Link لأنو أقوى مع transforms
+          const href = `/category/${slug}`;
+          // نقل كامل الصفحة للتأكد من الشغل (3D transforms بتعطّل React Router أحياناً)
+          const handleNav = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            navigate(href);
+            window.location.assign(href);
           };
           return (
             <a
               key={`cat-${c.id || c.name || i}-${i}`}
               href={href}
-              onClick={handleClick}
+              onClick={handleNav}
               className="h3d-card"
               style={{ animationDelay: `${i * 0.2}s` }}
-              role="link"
               aria-label={displayName}
             >
               <div className="h3d-img">
