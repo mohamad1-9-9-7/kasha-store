@@ -302,12 +302,130 @@ export default function AdminDashboard() {
     return () => clearTimeout(id);
   }, [settings, tab]);
 
-  /* ── فلترة المنتجات ── */
+  /* ── فلاتر المنتجات المتقدمة ── */
+  const [prodFilterCat, setProdFilterCat] = useState("");
+  const [prodFilterStock, setProdFilterStock] = useState("all"); // all | in | low | out
+  const [prodFilterVis, setProdFilterVis] = useState("all");     // all | shown | hidden
+  const [prodFilterFeat, setProdFilterFeat] = useState("all");   // all | yes | no
+  const [prodFilterSale, setProdFilterSale] = useState("all");   // all | yes | no
+  const [prodPriceMin, setProdPriceMin] = useState("");
+  const [prodPriceMax, setProdPriceMax] = useState("");
+  const [prodSort, setProdSort] = useState("default");
+  const [selectedProds, setSelectedProds] = useState(() => new Set());
+  const [showProdFilters, setShowProdFilters] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+
   const filteredProds = useMemo(() => {
-    if (!prodSearch.trim()) return products;
-    const q = prodSearch.toLowerCase();
-    return products.filter(p => (p.name || "").toLowerCase().includes(q) || (p.category || "").toLowerCase().includes(q));
-  }, [products, prodSearch]);
+    let arr = [...products];
+    const q = prodSearch.trim().toLowerCase();
+    if (q) arr = arr.filter(p =>
+      (p.name || "").toLowerCase().includes(q) ||
+      (p.nameEn || "").toLowerCase().includes(q) ||
+      (p.category || "").toLowerCase().includes(q) ||
+      (p.brand || "").toLowerCase().includes(q) ||
+      (p.sku || "").toLowerCase().includes(q)
+    );
+    if (prodFilterCat) arr = arr.filter(p => p.category === prodFilterCat);
+    if (prodFilterStock !== "all") {
+      arr = arr.filter(p => {
+        const s = Number(p.stock);
+        if (!Number.isFinite(s)) return prodFilterStock === "in";
+        if (prodFilterStock === "out") return s <= 0;
+        if (prodFilterStock === "low") return s > 0 && s <= (p.lowStockThreshold || 5);
+        if (prodFilterStock === "in")  return s > 0;
+        return true;
+      });
+    }
+    if (prodFilterVis === "shown")  arr = arr.filter(p => !p.hidden);
+    if (prodFilterVis === "hidden") arr = arr.filter(p => !!p.hidden);
+    if (prodFilterFeat === "yes") arr = arr.filter(p => !!p.featured);
+    if (prodFilterFeat === "no")  arr = arr.filter(p => !p.featured);
+    if (prodFilterSale === "yes") arr = arr.filter(p => Number(p.oldPrice) > Number(p.price));
+    if (prodFilterSale === "no")  arr = arr.filter(p => !(Number(p.oldPrice) > Number(p.price)));
+    const minN = prodPriceMin === "" ? -Infinity : Number(prodPriceMin);
+    const maxN = prodPriceMax === "" ? Infinity  : Number(prodPriceMax);
+    if (Number.isFinite(minN) || Number.isFinite(maxN)) {
+      arr = arr.filter(p => { const pr = Number(p.price) || 0; return pr >= minN && pr <= maxN; });
+    }
+
+    // ترتيب
+    if (prodSort === "name-asc")   arr.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    if (prodSort === "name-desc")  arr.sort((a, b) => (b.name || "").localeCompare(a.name || ""));
+    if (prodSort === "price-asc")  arr.sort((a, b) => Number(a.price) - Number(b.price));
+    if (prodSort === "price-desc") arr.sort((a, b) => Number(b.price) - Number(a.price));
+    if (prodSort === "stock-asc")  arr.sort((a, b) => (Number(a.stock) || 0) - (Number(b.stock) || 0));
+    if (prodSort === "stock-desc") arr.sort((a, b) => (Number(b.stock) || 0) - (Number(a.stock) || 0));
+    if (prodSort === "newest")     arr.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    if (prodSort === "oldest")     arr.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+
+    return arr;
+  }, [products, prodSearch, prodFilterCat, prodFilterStock, prodFilterVis, prodFilterFeat, prodFilterSale, prodPriceMin, prodPriceMax, prodSort]);
+
+  const activeProdFilters = useMemo(() => {
+    const chips = [];
+    if (prodFilterCat) chips.push({ label: `📂 ${prodFilterCat}`, clear: () => setProdFilterCat("") });
+    if (prodFilterStock !== "all") chips.push({ label: `📦 ${prodFilterStock === "out" ? "نفد" : prodFilterStock === "low" ? "منخفض" : "متوفر"}`, clear: () => setProdFilterStock("all") });
+    if (prodFilterVis !== "all") chips.push({ label: `👁️ ${prodFilterVis === "shown" ? "ظاهر" : "مخفي"}`, clear: () => setProdFilterVis("all") });
+    if (prodFilterFeat !== "all") chips.push({ label: `⭐ ${prodFilterFeat === "yes" ? "مميّز" : "غير مميّز"}`, clear: () => setProdFilterFeat("all") });
+    if (prodFilterSale !== "all") chips.push({ label: `🔥 ${prodFilterSale === "yes" ? "تخفيض" : "سعر عادي"}`, clear: () => setProdFilterSale("all") });
+    if (prodPriceMin || prodPriceMax) chips.push({ label: `💰 ${prodPriceMin || 0} - ${prodPriceMax || "∞"}`, clear: () => { setProdPriceMin(""); setProdPriceMax(""); } });
+    return chips;
+  }, [prodFilterCat, prodFilterStock, prodFilterVis, prodFilterFeat, prodFilterSale, prodPriceMin, prodPriceMax]);
+
+  const clearAllProdFilters = () => {
+    setProdSearch(""); setProdFilterCat(""); setProdFilterStock("all"); setProdFilterVis("all");
+    setProdFilterFeat("all"); setProdFilterSale("all"); setProdPriceMin(""); setProdPriceMax("");
+    setProdSort("default");
+  };
+
+  /* ── اختيار جماعي وإجراءات ── */
+  const toggleProdSelect = (id) => {
+    setSelectedProds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+  const toggleAllProds = () => {
+    setSelectedProds(prev => {
+      if (prev.size === filteredProds.length) return new Set();
+      return new Set(filteredProds.map(p => p.id));
+    });
+  };
+  const bulkAction = async (action) => {
+    if (selectedProds.size === 0) return;
+    const ids = Array.from(selectedProds);
+    if (action === "delete") {
+      if (!window.confirm(`حذف ${ids.length} منتج نهائياً؟`)) return;
+    }
+    setBulkBusy(true);
+    try {
+      if (action === "delete") await Promise.all(ids.map(id => deleteProduct(id)));
+      if (action === "hide")   await Promise.all(ids.map(id => updateProduct(id, { hidden: true })));
+      if (action === "show")   await Promise.all(ids.map(id => updateProduct(id, { hidden: false })));
+      if (action === "feat")   await Promise.all(ids.map(id => updateProduct(id, { featured: true })));
+      if (action === "unfeat") await Promise.all(ids.map(id => updateProduct(id, { featured: false })));
+      await refreshProducts();
+      setSelectedProds(new Set());
+    } catch (e) { alert("❌ فشل التنفيذ: " + (e.message || "")); }
+    finally { setBulkBusy(false); }
+  };
+
+  /* ── تصدير CSV ── */
+  const exportProdsCSV = () => {
+    const rows = [["ID","Name","Name(EN)","SKU","Category","Brand","Price","Old Price","Stock","Hidden","Featured","Image"]];
+    filteredProds.forEach(p => rows.push([
+      p.id, p.name || "", p.nameEn || "", p.sku || "", p.category || "", p.brand || "",
+      p.price || "", p.oldPrice || "", p.stock ?? "", p.hidden ? "yes" : "no",
+      p.featured ? "yes" : "no", p.image || ""
+    ]));
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `products-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  };
 
   /* ── آخر الطلبات ── */
   const recentOrders = useMemo(() => [...orders].slice(-5).reverse(), [orders]);
@@ -735,19 +853,133 @@ export default function AdminDashboard() {
 
         {/* ════════════ المنتجات ════════════ */}
         {tab === "products" && (
-          <div style={{ display: "grid", gap: 20, animation: "fadeUp .4s ease both" }}>
+          <div style={{ display: "grid", gap: 16, animation: "fadeUp .4s ease both" }}>
 
-            {/* شريط البحث + إحصاء */}
-            <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-              <div style={{ flex: 1, minWidth: 240, position: "relative" }}>
-                <input placeholder="🔍 ابحث عن منتج أو قسم..." value={prodSearch} onChange={e => setProdSearch(e.target.value)}
-                  style={{ ...inputBase, paddingRight: 44 }} onFocus={focusIn} onBlur={focusOut} />
+            {/* شريط الأدوات */}
+            <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E2E8F0", boxShadow: shadow.sm, padding: "14px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 240, position: "relative" }}>
+                  <input placeholder="🔍 ابحث (اسم، قسم، ماركة، SKU)..." value={prodSearch} onChange={e => setProdSearch(e.target.value)}
+                    style={{ ...inputBase, padding: "10px 14px" }} onFocus={focusIn} onBlur={focusOut} />
+                </div>
+
+                <button onClick={() => setShowProdFilters(v => !v)}
+                  style={{ padding: "10px 16px", borderRadius: 10, border: `1.5px solid ${activeProdFilters.length ? "#6366F1" : "#E2E8F0"}`, background: activeProdFilters.length ? "#EEF2FF" : "#F8FAFC", color: activeProdFilters.length ? "#6366F1" : "#334155", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif", display: "flex", alignItems: "center", gap: 6 }}>
+                  🎛️ فلاتر {activeProdFilters.length > 0 && <span style={{ background: "#6366F1", color: "#fff", borderRadius: 999, padding: "1px 8px", fontSize: 11 }}>{activeProdFilters.length}</span>}
+                </button>
+
+                <select value={prodSort} onChange={e => setProdSort(e.target.value)}
+                  style={{ padding: "10px 12px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 13, background: "#F8FAFC", fontWeight: 700, fontFamily: "'Tajawal',sans-serif", cursor: "pointer", outline: "none" }}>
+                  <option value="default">ترتيب: افتراضي</option>
+                  <option value="newest">🆕 الأحدث</option>
+                  <option value="oldest">📅 الأقدم</option>
+                  <option value="name-asc">📝 الاسم أ-ي</option>
+                  <option value="name-desc">📝 الاسم ي-أ</option>
+                  <option value="price-asc">💰 السعر ↑</option>
+                  <option value="price-desc">💰 السعر ↓</option>
+                  <option value="stock-asc">📦 المخزون الأقل أولاً</option>
+                  <option value="stock-desc">📦 المخزون الأكثر أولاً</option>
+                </select>
+
+                <span style={{ background: "#EEF2FF", color: "#6366F1", borderRadius: 999, padding: "8px 14px", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>
+                  {filteredProds.length} / {products.length}
+                </span>
+
+                <button onClick={exportProdsCSV} title="تصدير Excel"
+                  style={{ padding: "10px 14px", borderRadius: 10, border: "1.5px solid #10B981", background: "#ECFDF5", color: "#10B981", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+                  📥 CSV
+                </button>
+                <Link to="/add-product" style={{ ...btnPrimary, padding: "10px 18px", whiteSpace: "nowrap" }}>➕ منتج</Link>
               </div>
-              <span style={{ background: "#EEF2FF", color: "#6366F1", borderRadius: 999, padding: "8px 18px", fontSize: 14, fontWeight: 700, whiteSpace: "nowrap" }}>
-                {filteredProds.length} / {products.length} منتج
-              </span>
-              <Link to="/add-product" style={{ ...btnPrimary, padding: "10px 20px", whiteSpace: "nowrap" }}>➕ إضافة منتج</Link>
+
+              {/* رقائق الفلاتر المفعّلة */}
+              {activeProdFilters.length > 0 && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12, alignItems: "center" }}>
+                  {activeProdFilters.map((c, i) => (
+                    <button key={i} onClick={c.clear} style={{ background: "#EEF2FF", color: "#6366F1", border: "1px solid #C7D2FE", borderRadius: 999, padding: "4px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Tajawal',sans-serif", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                      {c.label} <span style={{ fontSize: 13 }}>×</span>
+                    </button>
+                  ))}
+                  <button onClick={clearAllProdFilters} style={{ background: "transparent", color: "#EF4444", border: "none", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+                    🧹 مسح الكل
+                  </button>
+                </div>
+              )}
+
+              {/* لوحة الفلاتر التفصيلية */}
+              {showProdFilters && (
+                <div style={{ marginTop: 14, padding: "14px", background: "#F8FAFC", borderRadius: 12, border: "1px solid #E2E8F0", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
+                  <div>
+                    <label style={{ ...lbl, fontSize: 12 }}>القسم</label>
+                    <select value={prodFilterCat} onChange={e => setProdFilterCat(e.target.value)}
+                      style={{ ...inputBase, padding: "7px 10px", fontSize: 12 }}>
+                      <option value="">— الكل —</option>
+                      {categories.map(c => { const name = typeof c === "string" ? c : c.name; return <option key={name} value={name}>{name}</option>; })}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ ...lbl, fontSize: 12 }}>المخزون</label>
+                    <select value={prodFilterStock} onChange={e => setProdFilterStock(e.target.value)} style={{ ...inputBase, padding: "7px 10px", fontSize: 12 }}>
+                      <option value="all">الكل</option>
+                      <option value="in">✅ متوفر</option>
+                      <option value="low">⚠️ منخفض</option>
+                      <option value="out">🔴 نفد</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ ...lbl, fontSize: 12 }}>الظهور</label>
+                    <select value={prodFilterVis} onChange={e => setProdFilterVis(e.target.value)} style={{ ...inputBase, padding: "7px 10px", fontSize: 12 }}>
+                      <option value="all">الكل</option>
+                      <option value="shown">👁️ ظاهر</option>
+                      <option value="hidden">🙈 مخفي</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ ...lbl, fontSize: 12 }}>مميّز</label>
+                    <select value={prodFilterFeat} onChange={e => setProdFilterFeat(e.target.value)} style={{ ...inputBase, padding: "7px 10px", fontSize: 12 }}>
+                      <option value="all">الكل</option>
+                      <option value="yes">⭐ مميّز</option>
+                      <option value="no">عادي</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ ...lbl, fontSize: 12 }}>التخفيضات</label>
+                    <select value={prodFilterSale} onChange={e => setProdFilterSale(e.target.value)} style={{ ...inputBase, padding: "7px 10px", fontSize: 12 }}>
+                      <option value="all">الكل</option>
+                      <option value="yes">🔥 مع تخفيض</option>
+                      <option value="no">سعر عادي</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ ...lbl, fontSize: 12 }}>السعر (درهم)</label>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input type="number" placeholder="من" value={prodPriceMin} onChange={e => setProdPriceMin(e.target.value)} style={{ ...inputBase, padding: "7px 10px", fontSize: 12 }} />
+                      <input type="number" placeholder="إلى" value={prodPriceMax} onChange={e => setProdPriceMax(e.target.value)} style={{ ...inputBase, padding: "7px 10px", fontSize: 12 }} />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* شريط الإجراءات الجماعية */}
+            {selectedProds.size > 0 && (
+              <div style={{ background: "linear-gradient(135deg,#EEF2FF,#FDF4FF)", border: "1.5px solid #C7D2FE", borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", animation: "fadeUp .2s" }}>
+                <span style={{ fontWeight: 900, color: "#6366F1", fontSize: 14 }}>{selectedProds.size} محدّد</span>
+                <div style={{ flex: 1 }} />
+                <button disabled={bulkBusy} onClick={() => bulkAction("show")}
+                  style={{ background: "#ECFDF5", color: "#10B981", border: "none", borderRadius: 10, padding: "7px 14px", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>👁️ إظهار</button>
+                <button disabled={bulkBusy} onClick={() => bulkAction("hide")}
+                  style={{ background: "#FEF3C7", color: "#B45309", border: "none", borderRadius: 10, padding: "7px 14px", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>🙈 إخفاء</button>
+                <button disabled={bulkBusy} onClick={() => bulkAction("feat")}
+                  style={{ background: "#FFFBEB", color: "#F59E0B", border: "none", borderRadius: 10, padding: "7px 14px", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>⭐ جعله مميّز</button>
+                <button disabled={bulkBusy} onClick={() => bulkAction("unfeat")}
+                  style={{ background: "#F1F5F9", color: "#64748B", border: "none", borderRadius: 10, padding: "7px 14px", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>إزالة تمييز</button>
+                <button disabled={bulkBusy} onClick={() => bulkAction("delete")}
+                  style={{ background: "#EF4444", color: "#fff", border: "none", borderRadius: 10, padding: "7px 14px", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>🗑️ حذف</button>
+                <button onClick={() => setSelectedProds(new Set())}
+                  style={{ background: "transparent", color: "#64748B", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>إلغاء التحديد</button>
+              </div>
+            )}
 
             {/* جدول المنتجات */}
             <div className="prod-table-wrap" style={{ background: "#fff", borderRadius: 20, border: "1px solid #F1F5F9", boxShadow: shadow.md, overflow: "auto" }}>
@@ -760,6 +992,12 @@ export default function AdminDashboard() {
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #F1F5F9" }}>
+                      <th style={{ padding: "14px 14px", width: 40 }}>
+                        <input type="checkbox"
+                          checked={filteredProds.length > 0 && selectedProds.size === filteredProds.length}
+                          onChange={toggleAllProds}
+                          style={{ width: 16, height: 16, accentColor: "#6366F1", cursor: "pointer" }} />
+                      </th>
                       {["المنتج", "القسم", "السعر", "المخزون", "الحالة", "إجراءات"].map(h => (
                         <th key={h} style={{ padding: "14px 16px", textAlign: "right", fontWeight: 700, fontSize: 13, color: "#64748B" }}>{h}</th>
                       ))}
@@ -767,15 +1005,28 @@ export default function AdminDashboard() {
                   </thead>
                   <tbody>
                     {filteredProds.map((p, i) => (
-                      <tr key={p.id} className="prod-row" style={{ borderBottom: "1px solid #F1F5F9", background: p.hidden ? "#FAFAFA" : "#fff" }}>
+                      <tr key={p.id} className="prod-row" style={{ borderBottom: "1px solid #F1F5F9", background: selectedProds.has(p.id) ? "#EEF2FF" : p.hidden ? "#FAFAFA" : "#fff" }}>
+                        <td style={{ padding: "12px 14px", textAlign: "center" }}>
+                          <input type="checkbox"
+                            checked={selectedProds.has(p.id)}
+                            onChange={() => toggleProdSelect(p.id)}
+                            style={{ width: 16, height: 16, accentColor: "#6366F1", cursor: "pointer" }} />
+                        </td>
                         <td style={{ padding: "12px 16px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                            <div style={{ width: 44, height: 44, borderRadius: 10, overflow: "hidden", background: "#F1F5F9", flexShrink: 0 }}>
-                              <img src={p.image || ""} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
+                            <div style={{ width: 44, height: 44, borderRadius: 10, overflow: "hidden", background: "#F1F5F9", flexShrink: 0, position: "relative" }}>
+                              {p.image
+                                ? <img src={p.image} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
+                                : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, opacity: .4 }}>📦</div>
+                              }
+                              {p.featured && <span style={{ position: "absolute", top: -4, right: -4, background: "#F59E0B", color: "#fff", borderRadius: "50%", width: 18, height: 18, fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>⭐</span>}
                             </div>
                             <div>
                               <div style={{ fontWeight: 700, fontSize: 14, color: p.hidden ? "#94A3B8" : "#0F172A" }}>{p.name}</div>
-                              {p.badges?.length > 0 && <div style={{ fontSize: 11, color: "#94A3B8" }}>{p.badges.slice(0, 2).join(" • ")}</div>}
+                              <div style={{ fontSize: 11, color: "#94A3B8", display: "flex", gap: 6, marginTop: 2 }}>
+                                {p.sku && <span>🏷️ {p.sku}</span>}
+                                {p.brand && <span>• {p.brand}</span>}
+                              </div>
                             </div>
                           </div>
                         </td>

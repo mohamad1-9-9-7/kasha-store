@@ -68,7 +68,10 @@
       "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/components/TruckSuccess.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('TruckSuccess OK'\\); } catch\\(e\\) { console.log\\('ERROR line', e.loc?.line, ':', e.message\\); }\")",
       "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/pages/CartPage.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('CartPage OK'\\); } catch\\(e\\) { console.log\\('ERROR line', e.loc?.line, ':', e.message\\); }\")",
       "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/pages/AdminDashboard.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('OK'\\); } catch\\(e\\) { console.log\\('ERROR line', e.loc?.line, ':', e.message\\); }\")",
-      "Bash(node -e \"try { require\\('./backend/routes/orders.js'\\); console.log\\('orders.js loads'\\); } catch\\(e\\) { console.log\\('backend err:', e.message\\); }\")"
+      "Bash(node -e \"try { require\\('./backend/routes/orders.js'\\); console.log\\('orders.js loads'\\); } catch\\(e\\) { console.log\\('backend err:', e.message\\); }\")",
+      "Bash(node -e \"try { const c = require\\('fs'\\).readFileSync\\('backend/routes/orders.js','utf8'\\); require\\('@babel/parser'\\).parse\\(c, { sourceType: 'script' }\\); console.log\\('OK'\\); } catch\\(e\\) { console.log\\('ERR line', e.loc?.line, ':', e.message\\); }\")",
+      "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/pages/AdminDashboard.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('OK'\\); } catch\\(e\\) { console.log\\('ERR line', e.loc?.line, ':', e.message\\); }\")",
+      "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/pages/AuthPage.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('OK'\\); } catch\\(e\\) { console.log\\('ERR line', e.loc?.line, ':', e.message\\); }\")"
     ]
   }
 }

@@ -176,42 +176,123 @@ router.post("/", async (req, res) => {
 });
 
 // Helper: find order row by either id column or data->>'id' (handles legacy rows)
-async function findOrderRow(id) {
-  let { rows } = await pool.query("SELECT id, data FROM orders WHERE id = $1", [id]);
+async function findOrderRow(id, client = pool) {
+  let { rows } = await client.query("SELECT id, data FROM orders WHERE id = $1", [id]);
   if (rows.length) return rows[0];
-  const r = await pool.query("SELECT id, data FROM orders WHERE data->>'id' = $1", [id]);
+  const r = await client.query("SELECT id, data FROM orders WHERE data->>'id' = $1", [id]);
   return r.rows[0] || null;
 }
 
-// PUT update order status (admin) — whitelist allowed fields
+/**
+ * يرجّع مخزون كل منتجات الطلب (عند الإلغاء أو الحذف).
+ * idempotent: لو المخزون مرجوع مسبقاً ما بيرجع مرتين.
+ */
+async function restoreStockForOrder(client, order) {
+  if (order.stockRestored) return order;
+  for (const it of (order.items || [])) {
+    const pid = String(it.id || "");
+    const qty = Number(it.qty) || 0;
+    if (!pid || qty < 1) continue;
+    const { rows } = await client.query(
+      "SELECT data FROM products WHERE id = $1 FOR UPDATE",
+      [pid]
+    );
+    if (!rows.length) continue; // المنتج اتحذف — تخطّاه
+    const prod = rows[0].data;
+    if (Number.isFinite(prod.stock)) {
+      const updated = { ...prod, stock: prod.stock + qty };
+      await client.query("UPDATE products SET data = $1 WHERE id = $2", [updated, pid]);
+    }
+  }
+  return { ...order, stockRestored: true };
+}
+
+/**
+ * يخصم المخزون (عند الرجوع من حالة CANCELED لأي حالة نشطة).
+ */
+async function deductStockForOrder(client, order) {
+  if (!order.stockRestored) return order; // المخزون لسا مخصوم
+  for (const it of (order.items || [])) {
+    const pid = String(it.id || "");
+    const qty = Number(it.qty) || 0;
+    if (!pid || qty < 1) continue;
+    const { rows } = await client.query(
+      "SELECT data FROM products WHERE id = $1 FOR UPDATE",
+      [pid]
+    );
+    if (!rows.length) continue;
+    const prod = rows[0].data;
+    if (Number.isFinite(prod.stock)) {
+      const newStock = Math.max(0, prod.stock - qty);
+      const updated = { ...prod, stock: newStock };
+      await client.query("UPDATE products SET data = $1 WHERE id = $2", [updated, pid]);
+    }
+  }
+  const { stockRestored, ...rest } = order;
+  return rest;
+}
+
+// PUT update order status (admin) — whitelist allowed fields + auto-restore stock
 const ORDER_UPDATABLE = ["status", "note", "trackingNumber", "paymentStatus"];
 router.put("/:id", requireAdmin, async (req, res) => {
+  const client = await pool.connect();
   try {
-    const row = await findOrderRow(req.params.id);
-    if (!row) return res.status(404).json({ error: "الطلب غير موجود" });
+    await client.query("BEGIN");
+    const row = await findOrderRow(req.params.id, client);
+    if (!row) { await client.query("ROLLBACK"); return res.status(404).json({ error: "الطلب غير موجود" }); }
+
     const patch = {};
     for (const k of ORDER_UPDATABLE) {
       if (k in req.body) patch[k] = req.body[k];
     }
-    const updated = { ...row.data, ...patch };
-    await pool.query("UPDATE orders SET data = $1 WHERE id = $2", [updated, row.id]);
+
+    let updated = { ...row.data, ...patch };
+
+    // 📦 إدارة المخزون حسب تغيير الحالة
+    const oldStatus = row.data.status;
+    const newStatus = updated.status;
+    if (oldStatus !== "CANCELED" && newStatus === "CANCELED") {
+      // الطلب اتلغى → رجّع المخزون
+      updated = await restoreStockForOrder(client, updated);
+    } else if (oldStatus === "CANCELED" && newStatus && newStatus !== "CANCELED") {
+      // رجّعوه من الإلغاء → اخصم المخزون من جديد
+      updated = await deductStockForOrder(client, updated);
+    }
+
+    await client.query("UPDATE orders SET data = $1 WHERE id = $2", [updated, row.id]);
+    await client.query("COMMIT");
     res.json(updated);
   } catch (e) {
+    try { await client.query("ROLLBACK"); } catch {}
     console.error("PUT /orders:", e);
     res.status(500).json({ error: "خطأ في الخادم" });
+  } finally {
+    client.release();
   }
 });
 
-// DELETE order (admin)
+// DELETE order (admin) — يرجّع المخزون إذا لسا مخصوم
 router.delete("/:id", requireAdmin, async (req, res) => {
+  const client = await pool.connect();
   try {
-    const row = await findOrderRow(req.params.id);
-    if (!row) return res.status(404).json({ error: "الطلب غير موجود" });
-    await pool.query("DELETE FROM orders WHERE id = $1", [row.id]);
+    await client.query("BEGIN");
+    const row = await findOrderRow(req.params.id, client);
+    if (!row) { await client.query("ROLLBACK"); return res.status(404).json({ error: "الطلب غير موجود" }); }
+
+    // إذا الطلب مش ملغي → رجّع المخزون قبل الحذف
+    if (row.data.status !== "CANCELED") {
+      await restoreStockForOrder(client, row.data);
+    }
+
+    await client.query("DELETE FROM orders WHERE id = $1", [row.id]);
+    await client.query("COMMIT");
     res.json({ ok: true });
   } catch (e) {
+    try { await client.query("ROLLBACK"); } catch {}
     console.error("DELETE /orders:", e);
     res.status(500).json({ error: "خطأ في الخادم" });
+  } finally {
+    client.release();
   }
 });
 
