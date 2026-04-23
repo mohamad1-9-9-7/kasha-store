@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { catName, slugify } from "../Theme";
 
 /**
@@ -24,6 +24,7 @@ const iconFor = (name) => {
 
 export default function Hero3D({ categories = [], lang = "ar", loading = false }) {
   const wrapRef = useRef(null);
+  const navigate = useNavigate();
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -110,10 +111,25 @@ export default function Hero3D({ categories = [], lang = "ar", loading = false }
           const displayName = typeof c === "string" ? c : catName(c);
           const icon = c.icon || iconFor(c.name);
           const imgSrc = c.image || "";
-          const slug = slugify(c.name || displayName);
+          // استخدم الاسم العربي دائماً للـ slug — عشان لا يتغير عند تبديل اللغة
+          const slug = slugify(c.name || c.nameEn || displayName);
+          const href = `/category/${encodeURIComponent(slug)}`;
+          const handleClick = (e) => {
+            // نستخدم navigate يدوياً بدل Link لأنو أقوى مع transforms
+            e.preventDefault();
+            e.stopPropagation();
+            navigate(href);
+          };
           return (
-            <Link key={(c.id || c.name || i) + "-" + i} to={`/category/${slug}`}
-              className="h3d-card" style={{ animationDelay: `${i * 0.2}s` }}>
+            <a
+              key={`cat-${c.id || c.name || i}-${i}`}
+              href={href}
+              onClick={handleClick}
+              className="h3d-card"
+              style={{ animationDelay: `${i * 0.2}s` }}
+              role="link"
+              aria-label={displayName}
+            >
               <div className="h3d-img">
                 {imgSrc ? (
                   <>
@@ -133,7 +149,7 @@ export default function Hero3D({ categories = [], lang = "ar", loading = false }
                 <div className="h3d-name">{displayName}</div>
                 <div className="h3d-price">{lang === "ar" ? "تسوّق ←" : "Shop →"}</div>
               </div>
-            </Link>
+            </a>
           );
         })}
       </div>
