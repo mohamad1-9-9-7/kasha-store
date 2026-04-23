@@ -156,7 +156,18 @@ export const priceVat = (n) => {
 // Convenience: format a product price with VAT applied according to settings.
 export const fmtPrice = (n) => fmt(priceVat(n));
 
-export const slugify = (s) => String(s || "").trim().toLowerCase().replace(/\s+/g, "-");
+export const slugify = (s) => {
+  const str = String(s || "").trim().toLowerCase();
+  // توحيد Unicode (NFC) + إزالة التشكيل + توحيد أشكال الألف والهمزة
+  // يحل مشكلة "عالم الأطفال" بكتابات مختلفة (ا vs أ vs إ)
+  const normalized = str
+    .normalize("NFKC")
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, "") // إزالة علامات التشكيل
+    .replace(/[أإآ]/g, "ا")   // توحيد أشكال الألف
+    .replace(/ى/g, "ي")        // توحيد الياء
+    .replace(/ة/g, "ه");       // توحيد التاء المربوطة
+  return normalized.replace(/\s+/g, "-");
+};
 
 // اسم القسم حسب اللغة
 export const catName = (cat) => {
