@@ -74,9 +74,9 @@ export default function QuickView({ product, onClose }) {
         {/* صور */}
         <div style={{ padding: 16, background: "#F8FAFC" }}>
           <div style={{ borderRadius: 14, overflow: "hidden", background: "#fff", aspectRatio: "1/1", position: "relative" }}>
-            <img src={imgs[activeImg] || "https://via.placeholder.com/500"} alt={prodName(product)}
+            <img src={imgs[activeImg] || "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='500'%3E%3Crect fill='%23F1F5F9' width='100%25' height='100%25'/%3E%3Ctext x='50%25' y='50%25' font-size='120' text-anchor='middle' dy='.3em'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E"} alt={prodName(product)}
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              onError={e => e.currentTarget.src = "https://via.placeholder.com/500"} />
+              onError={e => { e.currentTarget.onerror = null; e.currentTarget.style.display = "none"; }} />
             {pct && (
               <span style={{ position: "absolute", top: 12, insetInlineEnd: 12, background: "#EF4444", color: "#fff", borderRadius: 999, padding: "4px 11px", fontWeight: 800, fontSize: 13 }}>
                 -{pct}%

@@ -10,8 +10,10 @@ import React, { useEffect, useRef, useState } from "react";
  *  - انتقال ناعم بين الصور
  *  - لوحة المفاتيح: ←/→ (في Lightbox) + Esc للخروج
  */
+const PLACEHOLDER_IMG = "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600' viewBox='0 0 600 600'%3E%3Crect fill='%23F1F5F9' width='100%25' height='100%25'/%3E%3Ctext x='50%25' y='50%25' font-size='140' text-anchor='middle' dy='.3em'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E";
+
 export default function ProductGallery({ images = [], alt = "", children, badge }) {
-  const list = (images || []).filter(Boolean).length ? images.filter(Boolean) : ["https://placehold.co/600x600?text=صورة"];
+  const list = (images || []).filter(Boolean).length ? images.filter(Boolean) : [PLACEHOLDER_IMG];
   const [idx, setIdx] = useState(0);
   const [loaded, setLoaded] = useState({});
   const [lightbox, setLightbox] = useState(false);
@@ -85,7 +87,7 @@ export default function ProductGallery({ images = [], alt = "", children, badge 
                 alt={`${alt} ${i + 1}`}
                 className={`pg-img ${i === idx ? "show" : ""}`}
                 onLoad={() => setLoaded(l => ({ ...l, [i]: true }))}
-                onError={e => { e.currentTarget.src = "https://placehold.co/600x600?text=صورة"; }}
+                onError={e => { if (e.currentTarget.src !== PLACEHOLDER_IMG) { e.currentTarget.onerror = null; e.currentTarget.src = PLACEHOLDER_IMG; } }}
                 style={{
                   transformOrigin: `${zoom.x}% ${zoom.y}%`,
                   transform: zoom.on && i === idx ? "scale(1.8)" : "scale(1)",

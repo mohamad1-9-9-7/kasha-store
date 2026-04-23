@@ -204,7 +204,7 @@ export default function AdminOrders() {
                         <div style={{ display: "grid", gap: 8 }}>
                           {(o.items || []).map((it, i) => (
                             <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 12, padding: "10px 14px", border: "1px solid #F1F5F9" }}>
-                              <img src={(it.image || "").trim() || "https://via.placeholder.com/50"} alt={it.name} style={{ width: 50, height: 50, objectFit: "cover", borderRadius: 10 }} onError={e => { e.currentTarget.src = "https://via.placeholder.com/50"; }} />
+                              <img src={(it.image || "").trim() || "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50'%3E%3Crect fill='%23F1F5F9' width='100%25' height='100%25'/%3E%3Ctext x='50%25' y='50%25' font-size='22' text-anchor='middle' dy='.3em'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E"} alt={it.name} style={{ width: 50, height: 50, objectFit: "cover", borderRadius: 10 }} onError={e => { e.currentTarget.onerror = null; e.currentTarget.style.display = "none"; }} />
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontWeight: 700, color: "#0F172A" }}>{it.name}</div>
                                 {it.variantSummary?.length > 0 && (

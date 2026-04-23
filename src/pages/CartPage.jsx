@@ -496,7 +496,7 @@ export default function CartPage() {
                         src={(it.image || "").trim()}
                         alt={prodName(it)}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                        onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = "https://placehold.co/200x200?text=📦"; }}
+                        onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect fill='%23F1F5F9' width='100%25' height='100%25'/%3E%3Ctext x='50%25' y='50%25' font-size='60' text-anchor='middle' dy='.3em'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E"; }}
                       />
                     ) : (
                       <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, background: "#F1F5F9" }}>📦</div>
@@ -562,7 +562,7 @@ export default function CartPage() {
                           <Link to={`/product/${p.id}`} style={{ textDecoration: "none", display: "block" }}>
                             <div style={{ height: 80, background: "#F1F5F9", position: "relative", overflow: "hidden" }}>
                               {p.image
-                                ? <img src={p.image} alt={prodName(p)} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = "https://placehold.co/200x200?text=📦"; }} />
+                                ? <img src={p.image} alt={prodName(p)} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect fill='%23F1F5F9' width='100%25' height='100%25'/%3E%3Ctext x='50%25' y='50%25' font-size='60' text-anchor='middle' dy='.3em'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E"; }} />
                                 : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, opacity: .3 }}>📦</div>}
                               {pct && <span style={{ position: "absolute", top: 4, right: 4, background: "#EF4444", color: "#fff", borderRadius: 999, padding: "2px 6px", fontSize: 10, fontWeight: 800 }}>-{pct}%</span>}
                             </div>

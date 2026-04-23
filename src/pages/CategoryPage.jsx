@@ -862,7 +862,8 @@ export default function CategoryPage() {
                     return c && Date.now() - c <= NEW_DAYS * 86400000;
                   })();
                   const imgs = [p.image, ...(Array.isArray(p.images) ? p.images.filter(x => x && x !== p.image) : [])].filter(Boolean);
-                  const mainImg = imgs[0] || "https://via.placeholder.com/400x300?text=صورة";
+                  const PLACEHOLDER = "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'%3E%3Crect fill='%23F1F5F9' width='100%25' height='100%25'/%3E%3Ctext x='50%25' y='50%25' font-size='80' text-anchor='middle' dy='.3em'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E";
+                  const mainImg = imgs[0] || PLACEHOLDER;
                   const hoverImg = imgs[1];
                   const wished = isWishlisted(p.id);
                   const hasVariants = (p.variants || []).length > 0;
@@ -876,7 +877,7 @@ export default function CategoryPage() {
                           <img src={mainImg}
                             alt={prodName(p)} className="prod-img-main"
                             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "opacity .3s ease, transform .4s ease" }}
-                            onError={e => { e.currentTarget.src = "https://via.placeholder.com/400x300?text=صورة"; }} />
+                            onError={e => { if (e.currentTarget.src !== PLACEHOLDER) e.currentTarget.src = PLACEHOLDER; }} />
                           {hoverImg && (
                             <img src={hoverImg} alt="" className="prod-img-hover"
                               style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0, transition: "opacity .3s ease" }}
@@ -1014,9 +1015,9 @@ export default function CategoryPage() {
                     onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
                   >
                     <div style={{ height: 120, overflow: "hidden", background: "#F8FAFC" }}>
-                      <img src={p.image || "https://via.placeholder.com/200"} alt={prodName(p)}
+                      <img src={p.image || "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect fill='%23F1F5F9' width='100%25' height='100%25'/%3E%3Ctext x='50%25' y='50%25' font-size='60' text-anchor='middle' dy='.3em'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E"} alt={prodName(p)}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                        onError={e => e.currentTarget.src = "https://via.placeholder.com/200"} />
+                        onError={e => { e.currentTarget.onerror = null; e.currentTarget.style.display = "none"; }} />
                     </div>
                     <div style={{ padding: "10px 12px" }}>
                       <div style={{ fontSize: 12, fontWeight: 800, color: "#0F172A", marginBottom: 4, lineHeight: 1.3, minHeight: 32, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
