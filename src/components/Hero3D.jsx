@@ -105,27 +105,16 @@ export default function Hero3D({ categories = [], lang = "ar", loading = false }
               </div>
             );
           }
-          // بطاقة قسم حقيقية
+          // بطاقة قسم حقيقية — منظر فقط (بدون رابط)
           const displayName = typeof c === "string" ? c : catName(c);
           const icon = c.icon || iconFor(c.name);
           const imgSrc = c.image || "";
-          // استخدم الاسم العربي دائماً للـ slug — عشان لا يتغير عند تبديل اللغة
-          const slug = slugify(c.name || c.nameEn || displayName);
-          const href = `/category/${encodeURIComponent(slug)}`;
-          // 3D transforms بتعطّل React Router احياناً — نستخدم navigation كامل للتأكد
-          const handleNav = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            window.location.assign(href);
-          };
           return (
-            <a
+            <div
               key={`cat-${c.id || c.name || i}-${i}`}
-              href={href}
-              onClick={handleNav}
-              className="h3d-card"
+              className="h3d-card h3d-deco"
               style={{ animationDelay: `${i * 0.2}s` }}
-              aria-label={displayName}
+              aria-hidden="true"
             >
               <div className="h3d-img">
                 {imgSrc ? (
@@ -144,9 +133,9 @@ export default function Hero3D({ categories = [], lang = "ar", loading = false }
               </div>
               <div className="h3d-info">
                 <div className="h3d-name">{displayName}</div>
-                <div className="h3d-price">{lang === "ar" ? "تسوّق ←" : "Shop →"}</div>
+                <div className="h3d-price">✨</div>
               </div>
-            </a>
+            </div>
           );
         })}
       </div>
@@ -302,6 +291,10 @@ const HERO3D_CSS = `
 /* حالة فاضية */
 .h3d-empty { cursor: default; }
 .h3d-empty:hover { transform: none; box-shadow: 0 20px 40px rgba(0,0,0,.35); border-color: rgba(255,255,255,.15); }
+
+/* بطاقات زينة (بدون رابط) */
+.h3d-deco { cursor: default; }
+.h3d-deco:hover { transform: translateZ(20px) scale(1.03); box-shadow: 0 24px 50px rgba(99,102,241,.35); border-color: rgba(255,255,255,.25); }
 
 @media (max-width: 480px) {
   .h3d-wrap { max-width: 380px; }

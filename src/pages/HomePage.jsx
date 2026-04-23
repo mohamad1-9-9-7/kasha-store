@@ -310,6 +310,67 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ── شبكة الأقسام ── */}
+      {cats.length > 0 && (
+        <section style={{ background: "#fff", padding: "56px 24px 40px" }}>
+          <div style={{ maxWidth: 1600, margin: "0 auto" }}>
+            <div style={{ textAlign: "center", marginBottom: 36 }}>
+              <p style={{ fontSize: 13, fontWeight: 800, color: "#6366F1", letterSpacing: "1px", marginBottom: 8 }}>
+                {isRtl ? "✨ تسوّق حسب القسم" : "✨ SHOP BY CATEGORY"}
+              </p>
+              <h2 style={{ fontSize: 30, fontWeight: 900, color: "#0F172A", lineHeight: 1.2 }}>
+                {isRtl ? "اكتشف أقسامنا" : "Explore Our Categories"}
+              </h2>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 18 }}>
+              {cats.map((cat, i) => {
+                const slug = slugify(cat.name || cat.nameEn);
+                const href = `/category/${encodeURIComponent(slug)}`;
+                const onClick = (e) => { e.preventDefault(); window.location.assign(href); };
+                return (
+                  <a key={cat.id || i} href={href} onClick={onClick} style={{
+                    display: "block", position: "relative", overflow: "hidden",
+                    borderRadius: 18, aspectRatio: "1 / 1",
+                    background: "linear-gradient(135deg, #EEF2FF 0%, #F5F3FF 100%)",
+                    border: "1.5px solid #E2E8F0", textDecoration: "none",
+                    transition: "transform .25s ease, box-shadow .25s ease, border-color .25s",
+                    boxShadow: "0 4px 12px rgba(15,23,42,.04)",
+                  }}
+                    onMouseOver={e => { e.currentTarget.style.transform = "translateY(-6px)"; e.currentTarget.style.boxShadow = "0 18px 40px rgba(99,102,241,.25)"; e.currentTarget.style.borderColor = "#6366F1"; }}
+                    onMouseOut={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,23,42,.04)"; e.currentTarget.style.borderColor = "#E2E8F0"; }}
+                  >
+                    {cat.image ? (
+                      <img src={cat.image} alt={catName(cat)}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                      />
+                    ) : (
+                      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 56 }}>
+                        {cat.icon || "📦"}
+                      </div>
+                    )}
+                    <div style={{
+                      position: "absolute", inset: 0,
+                      background: "linear-gradient(to top, rgba(15,23,42,.82) 0%, rgba(15,23,42,.25) 50%, transparent 100%)",
+                      display: "flex", alignItems: "flex-end", padding: 16,
+                    }}>
+                      <div style={{ width: "100%" }}>
+                        <div style={{ color: "#fff", fontWeight: 900, fontSize: 16, marginBottom: 4, textShadow: "0 2px 8px rgba(0,0,0,.4)" }}>
+                          {catName(cat)}
+                        </div>
+                        <div style={{ color: "#C7D2FE", fontWeight: 700, fontSize: 12 }}>
+                          {isRtl ? "تسوّق الآن ←" : "Shop now →"}
+                        </div>
+                      </div>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── شريط المميزات ── */}
       <section style={{ background: "#fff", borderBottom: "1px solid #F1F5F9" }}>
         <div className="features-grid" style={{ maxWidth: 1600, margin: "0 auto", padding: "0 24px", display: "grid", gridTemplateColumns: "repeat(4,1fr)" }}>
