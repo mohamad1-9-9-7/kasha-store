@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { catName, slugify } from "../Theme";
 
 /**
@@ -23,6 +24,7 @@ const iconFor = (name) => {
 
 export default function Hero3D({ categories = [], lang = "ar", loading = false }) {
   const wrapRef = useRef(null);
+  const navigate = useNavigate();
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -112,11 +114,11 @@ export default function Hero3D({ categories = [], lang = "ar", loading = false }
           // استخدم الاسم العربي دائماً للـ slug — عشان لا يتغير عند تبديل اللغة
           const slug = slugify(c.name || c.nameEn || displayName);
           const href = `/category/${slug}`;
-          // نقل كامل الصفحة للتأكد من الشغل (3D transforms بتعطّل React Router أحياناً)
+          // React Router SPA navigation — بدون reload
           const handleNav = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            window.location.assign(href);
+            navigate(href);
           };
           return (
             <a
