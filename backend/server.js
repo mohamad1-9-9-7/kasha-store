@@ -19,13 +19,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// Crash safety: log unhandled rejections / uncaught exceptions so they don't
-// silently kill the process on Render without a trace.
+// Crash safety. After an uncaughtException the process state is undefined
+// (open transactions, leaked file handles, half-mutated globals), so we MUST
+// exit and let the orchestrator (Render) restart with a clean slate. We log
+// first, then call shutdown() if it's defined yet, otherwise exit directly.
 process.on("unhandledRejection", (reason) => {
   console.error("[UNHANDLED_REJECTION]", reason?.stack || reason);
 });
 process.on("uncaughtException", (err) => {
   console.error("[UNCAUGHT_EXCEPTION]", err?.stack || err);
+  // Give logs a tick to flush, then exit non-zero so Render restarts the container.
+  setTimeout(() => process.exit(1), 200).unref();
 });
 
 // Security headers

@@ -7,12 +7,26 @@ const WEBHOOK = import.meta.env.VITE_ERROR_WEBHOOK_URL || "";
 
 let installed = false;
 
+// Drop query string + hash so we don't leak sensitive params (auth tokens,
+// password-reset codes, OAuth state, search queries with personal info).
+// We keep origin + path because they're useful for triage.
+function safeUrl() {
+  if (typeof location === "undefined") return "";
+  try {
+    const u = new URL(location.href);
+    const path = u.pathname.length > 200 ? u.pathname.slice(0, 200) + "…" : u.pathname;
+    return u.origin + path;
+  } catch {
+    return "";
+  }
+}
+
 function buildPayload(error, extra = {}) {
   const err = error instanceof Error ? error : new Error(String(error));
   return {
     message: err.message?.slice(0, 500) || "unknown",
     stack: err.stack?.split("\n").slice(0, 6).join("\n") || "",
-    url: typeof location !== "undefined" ? location.href : "",
+    url: safeUrl(),
     ua: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 200) : "",
     ts: new Date().toISOString(),
     ...extra,

@@ -1,18 +1,14 @@
 const router = require("express").Router();
 const { pool } = require("../db");
-const { requireAdmin } = require("../middleware/auth");
+const { requireAdmin, verifyToken } = require("../middleware/auth");
 const { v4: uuidv4 } = require("uuid");
-const jwt = require("jsonwebtoken");
 const { translate } = require("../lib/translate");
-
-const JWT_SECRET = process.env.JWT_SECRET;
 
 function isAdminRequest(req) {
   const header = req.headers.authorization;
   if (!header?.startsWith("Bearer ")) return false;
   try {
-    const payload = jwt.verify(header.slice(7), JWT_SECRET);
-    return payload?.role === "admin";
+    return verifyToken(header.slice(7))?.role === "admin";
   } catch {
     return false;
   }

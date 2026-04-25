@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const rateLimit = require("express-rate-limit");
 const { pool } = require("../db");
-const { requireAuth, requireAdmin } = require("../middleware/auth");
+const { requireAuth, requireAdmin, verifyToken } = require("../middleware/auth");
 const { v4: uuidv4 } = require("uuid");
 const { sendMail, orderConfirmationHTML } = require("../lib/mailer");
 const { notifyAdminOfOrder } = require("../lib/notifyAdmin");
@@ -111,8 +111,7 @@ router.post("/", createOrderLimiter, async (req, res) => {
     const auth = req.headers.authorization;
     if (auth?.startsWith("Bearer ")) {
       try {
-        const jwt = require("jsonwebtoken");
-        user = jwt.verify(auth.slice(7), process.env.JWT_SECRET);
+        user = verifyToken(auth.slice(7));
       } catch { /* invalid token → treat as guest */ }
     }
 
@@ -314,16 +313,16 @@ router.post("/", createOrderLimiter, async (req, res) => {
       userRow = uRows[0]?.data || null;
     }
 
-    if (pointsEnabled && wantRedeem && userRow) {
+    if (pointsEnabled && wantRedeem && userRow && pointsRedeemRate > 0 && pointsRedeemValue > 0) {
       const balance = Number(userRow.points) || 0;
       const subtotalAfterCoupon = Math.max(0, subtotal - couponDiscount - bundleDiscount);
-      const sets = Math.floor(balance / pointsRedeemRate);
-      let candidateDiscount = sets * pointsRedeemValue;
-      // Discount can't exceed remaining order value
-      candidateDiscount = Math.min(candidateDiscount, subtotalAfterCoupon);
-      if (candidateDiscount > 0) {
-        // Round redeemed point count up to whole sets that cover candidateDiscount
-        const setsUsed = Math.ceil(candidateDiscount / pointsRedeemValue);
+      // Sets the user actually has the balance for
+      const setsAvailable = Math.floor(balance / pointsRedeemRate);
+      // Sets that would fit under the cart cap (round DOWN — never give more
+      // discount than the remaining order value, even by a fraction of a set)
+      const setsCapped = Math.floor(subtotalAfterCoupon / pointsRedeemValue);
+      const setsUsed   = Math.min(setsAvailable, setsCapped);
+      if (setsUsed > 0) {
         pointsRedeemed = setsUsed * pointsRedeemRate;
         pointsDiscount = round2(setsUsed * pointsRedeemValue);
       }

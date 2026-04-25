@@ -30,12 +30,22 @@ const AdminOrders       = lazy(() => import("./pages/AdminOrders"));
 const CouponsPage       = lazy(() => import("./pages/CouponsPage"));
 const BulkImport        = lazy(() => import("./pages/BulkImport"));
 
-// Safe localStorage read (broken JSON shouldn't crash the app)
+// Safe localStorage read. If the JSON is corrupted we DROP the bad value (so
+// the next render shows the logged-out state) instead of returning null and
+// hanging on the loading screen.
 const safeGetUser = () => {
   try {
     const raw = localStorage.getItem("user");
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Treat anything that isn't a real object as corrupt
+    if (!parsed || typeof parsed !== "object") {
+      try { localStorage.removeItem("user"); } catch {}
+      return null;
+    }
+    return parsed;
   } catch {
+    try { localStorage.removeItem("user"); } catch {}
     return null;
   }
 };

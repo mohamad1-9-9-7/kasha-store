@@ -1,7 +1,6 @@
 const router = require("express").Router();
-const jwt = require("jsonwebtoken");
 const { pool } = require("../db");
-const { requireAdmin } = require("../middleware/auth");
+const { requireAdmin, verifyToken } = require("../middleware/auth");
 
 // Admin-only fields — never returned to non-admin clients.
 // Leaking these lets attackers send fake admin notifications, hijack
@@ -19,8 +18,7 @@ function isAdminRequest(req) {
   const header = req.headers.authorization;
   if (!header?.startsWith("Bearer ")) return false;
   try {
-    const payload = jwt.verify(header.slice(7), process.env.JWT_SECRET);
-    return payload?.role === "admin";
+    return verifyToken(header.slice(7))?.role === "admin";
   } catch {
     return false;
   }

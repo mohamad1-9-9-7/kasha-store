@@ -22,15 +22,18 @@ export default function ProductGallery({ images = [], alt = "", children, badge 
   // Lightbox zoom + pan
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  // dragRef: stable starting coords for the in-flight drag (no re-render needed).
+  // isDragging state: drives cursor + transition CSS (which DO need a re-render).
   const dragRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const { lang } = useLang() || { lang: "en" };
   const isAr = lang === "ar";
   const t = (ar, en) => (isAr ? ar : en);
 
+  const resetZoom = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
   const next = () => { setIdx(i => (i + 1) % list.length); resetZoom(); };
   const prev = () => { setIdx(i => (i - 1 + list.length) % list.length); resetZoom(); };
-  const resetZoom = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
 
   const zoomIn  = () => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)));
   const zoomOut = () => setZoom(z => {
@@ -58,14 +61,17 @@ export default function ProductGallery({ images = [], alt = "", children, badge 
     };
   }, [lightbox, list.length]);
 
-  // Reset zoom whenever the lightbox opens or image changes
-  useEffect(() => { if (!lightbox) resetZoom(); }, [lightbox]);
+  // Reset zoom + pan whenever the lightbox opens AND whenever the active
+  // image changes. Without this an open lightbox stuck at 200% zoom could
+  // carry over its pan offset to a totally different image.
+  useEffect(() => { resetZoom(); }, [lightbox, idx]);
 
   // Drag to pan when zoomed in
   const onPanStart = (e) => {
     if (zoom <= 1) return;
     const point = e.touches ? e.touches[0] : e;
     dragRef.current = { startX: point.clientX, startY: point.clientY, baseX: pan.x, baseY: pan.y };
+    setIsDragging(true);
   };
   const onPanMove = (e) => {
     if (!dragRef.current || zoom <= 1) return;
@@ -75,7 +81,10 @@ export default function ProductGallery({ images = [], alt = "", children, badge 
       y: dragRef.current.baseY + (point.clientY - dragRef.current.startY),
     });
   };
-  const onPanEnd = () => { dragRef.current = null; };
+  const onPanEnd = () => {
+    dragRef.current = null;
+    setIsDragging(false);
+  };
 
   // Wheel = zoom inside lightbox
   const onWheel = (e) => {
@@ -169,14 +178,14 @@ export default function ProductGallery({ images = [], alt = "", children, badge 
             onTouchStart={onPanStart}
             onTouchMove={onPanMove}
             onTouchEnd={onPanEnd}
-            style={{ cursor: zoom > 1 ? (dragRef.current ? "grabbing" : "grab") : "default" }}
+            style={{ cursor: zoom > 1 ? (isDragging ? "grabbing" : "grab") : "default" }}
           >
             <img
               src={list[idx]}
               alt={alt}
               className="pg-lb-img"
               draggable={false}
-              style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transition: dragRef.current ? "none" : "transform .15s ease-out" }}
+              style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transition: isDragging ? "none" : "transform .15s ease-out" }}
             />
           </div>
 

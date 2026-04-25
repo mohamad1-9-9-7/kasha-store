@@ -29,8 +29,9 @@ const EMIRATES = [
 
 /* Discount preview calculation. The server is the source of truth for the
    final amount (recomputed on order create); this is just a UI hint. */
-function previewCouponDiscount(coupon, subtotal) {
+function previewCouponDiscount(coupon, subtotalRaw) {
   if (!coupon) return 0;
+  const subtotal = Number(subtotalRaw) || 0;
   const value = Number(coupon.value) || 0;
   const minOrder = Number(coupon.minOrder) || 0;
   if (subtotal < minOrder) return 0;
@@ -174,9 +175,11 @@ export default function CartPage() {
     if (!code) return;
     try {
       const c = await validateCouponCode(code);
-      const discount = previewCouponDiscount(c, subtotal);
-      if (subtotal < (Number(c.minOrder) || 0)) {
-        setCouponError(isAr ? `الحد الأدنى للطلب ${fmt(c.minOrder)}` : `Minimum order ${fmt(c.minOrder)}`);
+      const subtotalNum = Number(subtotal) || 0;
+      const minOrder = Number(c.minOrder) || 0;
+      const discount = previewCouponDiscount(c, subtotalNum);
+      if (subtotalNum < minOrder) {
+        setCouponError(isAr ? `الحد الأدنى للطلب ${fmt(minOrder)}` : `Minimum order ${fmt(minOrder)}`);
         setAppliedCoupon(null); setCouponDiscount(0);
         return;
       }
