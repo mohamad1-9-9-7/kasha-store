@@ -297,7 +297,11 @@ export default function CartPage() {
         },
       });
 
-      if (appliedCoupon) incrementCouponUses(appliedCoupon.code);
+      if (appliedCoupon) {
+        incrementCouponUses(appliedCoupon.code).catch((err) =>
+          console.error("incrementCouponUses failed:", err?.message || err)
+        );
+      }
 
       if (user) {
         const redeemed  = redeemPoints ? maxRedeemSets * POINTS_REDEEM_RATE : 0;

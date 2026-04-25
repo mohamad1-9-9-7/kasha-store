@@ -1,9 +1,22 @@
 const router = require("express").Router();
+const rateLimit = require("express-rate-limit");
 const { pool } = require("../db");
 const { requireAuth, requireAdmin } = require("../middleware/auth");
 const { v4: uuidv4 } = require("uuid");
 const { sendMail, orderConfirmationHTML } = require("../lib/mailer");
 const { notifyAdminOfOrder } = require("../lib/notifyAdmin");
+const { normalizePhone, isValidPhone } = require("../lib/phone");
+
+// Per-IP cap on order creation to prevent bot floods (real shoppers rarely place >10 orders/15min)
+const createOrderLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "عدد محاولات كبير لإنشاء طلبات، حاول لاحقاً" },
+});
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // GET orders — admin: all, user: own orders (by phone in token)
 router.get("/", requireAuth, async (req, res) => {
@@ -37,7 +50,7 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 // POST create order — supports both authenticated users AND guest checkout
-router.post("/", async (req, res) => {
+router.post("/", createOrderLimiter, async (req, res) => {
   const client = await pool.connect();
   try {
     // Decode optional token (guest = no token)
@@ -63,12 +76,20 @@ router.post("/", async (req, res) => {
       if (!customer.name || !customer.phone || !customer.city || !customer.address) {
         return res.status(400).json({ error: "البيانات ناقصة للطلب كزائر" });
       }
-      // Normalize phone: digits only; strip leading country code 971 → local (0…)
-      const digits = String(customer.phone).replace(/\D/g, "").replace(/^971/, "0");
-      if (!/^05\d{8}$/.test(digits)) {
+      const normalized = normalizePhone(customer.phone);
+      if (!isValidPhone(normalized)) {
         return res.status(400).json({ error: "رقم الهاتف غير صالح" });
       }
-      customer.phone = digits;
+      customer.phone = normalized;
+    }
+
+    // Optional email — if provided, must be syntactically valid
+    if (customer.email != null && customer.email !== "") {
+      const email = String(customer.email).trim().toLowerCase();
+      if (!EMAIL_RE.test(email) || email.length > 254) {
+        return res.status(400).json({ error: "البريد الإلكتروني غير صالح" });
+      }
+      customer.email = email;
     }
 
     const orderItems = Array.isArray(req.body.items) ? req.body.items : [];
@@ -104,6 +125,32 @@ router.post("/", async (req, res) => {
       }
       const price = Number(prod.price) || 0;
       computedSubtotal += price * qty;
+
+      // Validate variantSummary against the product's variant schema
+      const rawVariants = Array.isArray(it.variantSummary) ? it.variantSummary : [];
+      const productVariants = Array.isArray(prod.variants) ? prod.variants : [];
+      const verifiedVariants = [];
+      for (const v of rawVariants) {
+        const grpName = v?.group;
+        const optLabel = v?.value;
+        if (!grpName || !optLabel) continue;
+        const grp = productVariants.find((g) => g?.name === grpName);
+        if (!grp) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            error: `الخيار "${grpName}" غير متوفر للمنتج "${prod.name}"`,
+          });
+        }
+        const opt = (grp.options || []).find((o) => o?.label === optLabel);
+        if (!opt) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            error: `الخيار "${grpName}: ${optLabel}" غير متوفر للمنتج "${prod.name}"`,
+          });
+        }
+        verifiedVariants.push({ group: grp.name, value: opt.label, hex: opt.hex });
+      }
+
       verifiedItems.push({
         id: pid,
         name: prod.name,
@@ -111,7 +158,7 @@ router.post("/", async (req, res) => {
         qty,
         image: it.image || prod.image || "",
         category: it.category || prod.category || "",
-        variantSummary: Array.isArray(it.variantSummary) ? it.variantSummary : [],
+        variantSummary: verifiedVariants,
       });
     }
 

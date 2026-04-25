@@ -79,7 +79,10 @@
       "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/pages/ProductDetails.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('PD OK'\\); } catch\\(e\\) { console.log\\('ERR line', e.loc?.line, ':', e.message\\); }\")",
       "Bash(node -e \"try { require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/components/ProductGallery.jsx','utf8'\\), {sourceType:'module', plugins:['jsx']}\\); console.log\\('Gallery OK'\\); } catch\\(e\\) { console.log\\('ERR line', e.loc?.line, ':', e.message\\); }\")",
       "Bash(curl -s http://localhost:3001/api/categories)",
-      "Bash(curl -sv http://localhost:3001/api/categories)"
+      "Bash(curl -sv http://localhost:3001/api/categories)",
+      "Bash(npm audit *)",
+      "Bash(node -e \"console.log\\(require\\('bcryptjs'\\).hashSync\\('802410', 10\\)\\)\")",
+      "Bash(timeout 5 node server.js)"
     ]
   }
 }

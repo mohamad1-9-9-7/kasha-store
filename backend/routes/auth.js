@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const { pool } = require("../db");
 const { requireAuth } = require("../middleware/auth");
+const { normalizePhone, isValidPhone } = require("../lib/phone");
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -11,10 +12,12 @@ if (!JWT_SECRET) {
 }
 
 const ADMIN_PHONE = process.env.ADMIN_PHONE;
-const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH; // bcrypt hash
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD; // plaintext fallback (discouraged)
-if (!ADMIN_PHONE || (!ADMIN_PASSWORD_HASH && !ADMIN_PASSWORD)) {
-  console.error("FATAL: ADMIN_PHONE and ADMIN_PASSWORD (or ADMIN_PASSWORD_HASH) are required.");
+const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH; // bcrypt hash — required
+if (!ADMIN_PHONE || !ADMIN_PASSWORD_HASH) {
+  console.error(
+    "FATAL: ADMIN_PHONE and ADMIN_PASSWORD_HASH are required. " +
+    "Generate a hash with: node -e \"console.log(require('bcryptjs').hashSync('YOUR_PASSWORD', 10))\""
+  );
   process.exit(1);
 }
 
@@ -38,13 +41,8 @@ router.post("/admin-login", async (req, res) => {
     const { phone, password } = req.body || {};
     if (!phone || !password) return res.status(400).json({ error: "البيانات ناقصة" });
 
-    const phoneOk = safeEqual(String(phone), String(ADMIN_PHONE));
-    let passOk = false;
-    if (ADMIN_PASSWORD_HASH) {
-      passOk = await bcrypt.compare(String(password), ADMIN_PASSWORD_HASH);
-    } else {
-      passOk = safeEqual(String(password), String(ADMIN_PASSWORD));
-    }
+    const phoneOk = safeEqual(normalizePhone(phone), normalizePhone(ADMIN_PHONE));
+    const passOk = await bcrypt.compare(String(password), ADMIN_PASSWORD_HASH);
     if (!phoneOk || !passOk) return res.status(401).json({ error: INVALID_CREDS });
 
     const token = sign({ id: "admin", role: "admin" });
@@ -60,29 +58,30 @@ router.post("/register", async (req, res) => {
   try {
     const { name, phone, password, city = "", address = "" } = req.body || {};
     if (!name || !phone || !password) return res.status(400).json({ error: "البيانات ناقصة" });
-    if (!/^05\d{8}$/.test(String(phone))) return res.status(400).json({ error: "رقم الهاتف غير صحيح" });
+    const normPhone = normalizePhone(phone);
+    if (!isValidPhone(normPhone)) return res.status(400).json({ error: "رقم الهاتف غير صحيح" });
     if (String(password).length < 6) return res.status(400).json({ error: "كلمة المرور يجب أن تكون 6 خانات على الأقل" });
     if (String(name).length > 100 || String(city).length > 100 || String(address).length > 200) {
       return res.status(400).json({ error: "طول الحقول يتجاوز الحد المسموح" });
     }
 
-    const exists = await pool.query("SELECT id FROM users WHERE id = $1", [phone]);
+    const exists = await pool.query("SELECT id FROM users WHERE id = $1", [normPhone]);
     if (exists.rows.length > 0) return res.status(400).json({ error: "رقم الهاتف مسجل مسبقاً" });
 
     const hashed = await bcrypt.hash(password, 10);
     const userData = {
       name: String(name).trim(),
-      phone: String(phone),
+      phone: normPhone,
       city: String(city).trim(),
       address: String(address).trim(),
       password: hashed,
       points: 0,
       createdAt: new Date().toISOString(),
     };
-    await pool.query("INSERT INTO users (id, data) VALUES ($1, $2)", [phone, userData]);
+    await pool.query("INSERT INTO users (id, data) VALUES ($1, $2)", [normPhone, userData]);
 
-    const user = { name: userData.name, phone, city: userData.city, address: userData.address, points: 0 };
-    res.json({ token: sign({ id: phone, role: "user", name: userData.name }), user });
+    const user = { name: userData.name, phone: normPhone, city: userData.city, address: userData.address, points: 0 };
+    res.json({ token: sign({ id: normPhone, role: "user", name: userData.name }), user });
   } catch (e) {
     console.error("register:", e);
     res.status(500).json({ error: "خطأ في الخادم" });
@@ -94,15 +93,16 @@ router.post("/login", async (req, res) => {
   try {
     const { phone, password } = req.body || {};
     if (!phone || !password) return res.status(400).json({ error: "البيانات ناقصة" });
-    const result = await pool.query("SELECT data FROM users WHERE id = $1", [phone]);
+    const normPhone = normalizePhone(phone);
+    const result = await pool.query("SELECT data FROM users WHERE id = $1", [normPhone]);
     if (!result.rows.length) return res.status(401).json({ error: INVALID_CREDS });
 
     const u = result.rows[0].data;
     const valid = await bcrypt.compare(password, u.password);
     if (!valid) return res.status(401).json({ error: INVALID_CREDS });
 
-    const user = { name: u.name, phone, city: u.city, address: u.address, points: u.points || 0 };
-    res.json({ token: sign({ id: phone, role: "user", name: u.name }), user });
+    const user = { name: u.name, phone: normPhone, city: u.city, address: u.address, points: u.points || 0 };
+    res.json({ token: sign({ id: normPhone, role: "user", name: u.name }), user });
   } catch (e) {
     console.error("login:", e);
     res.status(500).json({ error: "خطأ في الخادم" });

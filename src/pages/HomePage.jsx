@@ -166,11 +166,19 @@ export default function HomePage() {
           .footer-top   { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
           .footer-bot   { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
           .prod-grid    { grid-template-columns: repeat(2,1fr) !important; }
-          .cats-grid    { grid-template-columns: repeat(2,1fr) !important; }
+          .cats-grid    { grid-template-columns: repeat(2,1fr) !important; gap: 12px !important; }
+          .cats-section { padding: 36px 14px 28px !important; }
+          .cats-heading { font-size: 22px !important; }
+          .cats-sub     { font-size: 12px !important; }
+          .cats-head-wrap { margin-bottom: 20px !important; }
+          .cat-card-title { font-size: 14px !important; }
+          .cat-card-sub   { font-size: 11px !important; }
+          .cat-card-pad   { padding: 12px !important; }
+          .cat-card-ico   { font-size: 42px !important; }
         }
         @media (max-width: 480px) {
           .prod-grid  { grid-template-columns: 1fr 1fr !important; }
-          .cats-grid  { grid-template-columns: 1fr 1fr !important; }
+          .cats-grid  { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
           .hero-title { font-size: 26px !important; }
           .hero-btns  { flex-direction: column !important; }
           .hero-btns a, .hero-btns button { width: 100% !important; justify-content: center !important; }
@@ -312,17 +320,17 @@ export default function HomePage() {
 
       {/* ── شبكة الأقسام ── */}
       {cats.length > 0 && (
-        <section style={{ background: "#fff", padding: "56px 24px 40px" }}>
+        <section className="cats-section" style={{ background: "#fff", padding: "56px 24px 40px" }}>
           <div style={{ maxWidth: 1600, margin: "0 auto" }}>
-            <div style={{ textAlign: "center", marginBottom: 36 }}>
-              <p style={{ fontSize: 13, fontWeight: 800, color: "#6366F1", letterSpacing: "1px", marginBottom: 8 }}>
+            <div className="cats-head-wrap" style={{ textAlign: "center", marginBottom: 36 }}>
+              <p className="cats-sub" style={{ fontSize: 13, fontWeight: 800, color: "#6366F1", letterSpacing: "1px", marginBottom: 8 }}>
                 {isRtl ? "✨ تسوّق حسب القسم" : "✨ SHOP BY CATEGORY"}
               </p>
-              <h2 style={{ fontSize: 30, fontWeight: 900, color: "#0F172A", lineHeight: 1.2 }}>
+              <h2 className="cats-heading" style={{ fontSize: 30, fontWeight: 900, color: "#0F172A", lineHeight: 1.2 }}>
                 {isRtl ? "اكتشف أقسامنا" : "Explore Our Categories"}
               </h2>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 18 }}>
+            <div className="cats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 18 }}>
               {cats.map((cat, i) => {
                 const slug = slugify(cat.name || cat.nameEn);
                 const href = `/category/${encodeURIComponent(slug)}`;
@@ -345,20 +353,20 @@ export default function HomePage() {
                         onError={(e) => { e.currentTarget.style.display = "none"; }}
                       />
                     ) : (
-                      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 56 }}>
+                      <div className="cat-card-ico" style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 56 }}>
                         {cat.icon || "📦"}
                       </div>
                     )}
-                    <div style={{
+                    <div className="cat-card-pad" style={{
                       position: "absolute", inset: 0,
                       background: "linear-gradient(to top, rgba(15,23,42,.82) 0%, rgba(15,23,42,.25) 50%, transparent 100%)",
                       display: "flex", alignItems: "flex-end", padding: 16,
                     }}>
                       <div style={{ width: "100%" }}>
-                        <div style={{ color: "#fff", fontWeight: 900, fontSize: 16, marginBottom: 4, textShadow: "0 2px 8px rgba(0,0,0,.4)" }}>
+                        <div className="cat-card-title" style={{ color: "#fff", fontWeight: 900, fontSize: 16, marginBottom: 4, textShadow: "0 2px 8px rgba(0,0,0,.4)" }}>
                           {catName(cat)}
                         </div>
-                        <div style={{ color: "#C7D2FE", fontWeight: 700, fontSize: 12 }}>
+                        <div className="cat-card-sub" style={{ color: "#C7D2FE", fontWeight: 700, fontSize: 12 }}>
                           {isRtl ? "تسوّق الآن ←" : "Shop now →"}
                         </div>
                       </div>
