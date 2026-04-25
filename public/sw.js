@@ -1,4 +1,4 @@
-const CACHE_NAME = "kashkha-v3";
+const CACHE_NAME = "kashkha-v4";
 const STATIC_ASSETS = [
   "/",
   "/home",

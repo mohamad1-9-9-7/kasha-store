@@ -657,9 +657,8 @@ export default function CategoryPage() {
         @keyframes pulse-scale { 0%{transform:scale(1)} 50%{transform:scale(1.08)} 100%{transform:scale(1)} }
         .prod-card { transition: transform .22s ease, box-shadow .22s ease; }
         .prod-card:hover { transform: translateY(-6px); box-shadow: 0 20px 44px rgba(0,0,0,.12)!important; }
-        .prod-card:hover .prod-img-main { opacity: 0; }
+        .prod-card:hover .prod-img-main { transform: scale(1.06); }
         .prod-card:hover .prod-img-hover { opacity: 1; }
-        .prod-card:not(:has(.prod-img-hover)):hover .prod-img-main { opacity: 1; transform: scale(1.06); }
         .skeleton { background: linear-gradient(90deg,#F1F5F9 0%,#E2E8F0 50%,#F1F5F9 100%); background-size: 200% 100%; animation: shim 1.3s ease infinite; }
         @keyframes shim { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
         .scroll-top-btn:hover { transform: translateY(-3px) scale(1.05); }

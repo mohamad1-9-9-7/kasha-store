@@ -82,7 +82,11 @@
       "Bash(curl -sv http://localhost:3001/api/categories)",
       "Bash(npm audit *)",
       "Bash(node -e \"console.log\\(require\\('bcryptjs'\\).hashSync\\('802410', 10\\)\\)\")",
-      "Bash(timeout 5 node server.js)"
+      "Bash(timeout 5 node server.js)",
+      "Bash(npm ls *)",
+      "Bash(curl -s 'http://localhost:5173/src/components/AnalyticsPixels.jsx')",
+      "Bash(curl -s 'http://localhost:5173/src/hooks/useSettings.js')",
+      "Bash(curl -s 'http://localhost:5173/src/main.jsx')"
     ]
   }
 }
