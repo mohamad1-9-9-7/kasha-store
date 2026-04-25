@@ -18,10 +18,12 @@ function isAdminRequest(req) {
   }
 }
 
-// costPrice and priceWithoutTax are internal — never expose to the storefront
+// Internal fields — never expose to the storefront
+//   costPrice, priceWithoutTax → cost accounting
+//   vendorSku                  → supplier's original SKU, kept for image-file matching
 function stripPrivate(data) {
   if (!data) return data;
-  const { costPrice, priceWithoutTax, ...rest } = data;
+  const { costPrice, priceWithoutTax, vendorSku, ...rest } = data;
   return rest;
 }
 
@@ -117,6 +119,7 @@ router.post("/bulk", requireAdmin, async (req, res) => {
       const record = {
         id: String(p.id || sku),
         sku,
+        vendorSku: p.vendorSku ? String(p.vendorSku).trim() : "",
         name: p.name ? String(p.name).trim() : "",
         nameEn: p.nameEn ? String(p.nameEn).trim() : "",
         price,

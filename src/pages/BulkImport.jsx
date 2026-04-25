@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { shadow, inputBase, btnPrimary } from "../Theme";
 import { csvToObjects, objectsToCSV } from "../utils/csvParser";
 import { matrixToObjects, normalizeObjects } from "../utils/productImportMap";
+import { uploadToCloudinary, isConfigured as cloudinaryReady } from "../utils/cloudinary";
 import { apiFetch } from "../api";
 import { useToast } from "../context/ToastContext";
 import { useCategories } from "../hooks/useCategories";
@@ -134,12 +135,50 @@ export default function BulkImport() {
     }
   };
 
-  const previewKeys = rows.length
-    ? ["nameEn", "name", "sku", "price", "priceWithoutTax", "costPrice", "category", "brand",
-       "weight", "packageWeight", "productDimensions", "targetGender", "recommendedAge",
-       "color", "material", "returns"]
-      .filter((k) => rows.some((r) => r[k] !== undefined && r[k] !== ""))
-    : [];
+  // ─── per-row image management ───
+  const fileInputRefs = useRef({});
+
+  // Replace a row's images, keeping the rest of the row intact.
+  const setRowImages = (idx, urls) => {
+    setRows((prev) => prev.map((r, i) => {
+      if (i !== idx) return r;
+      const arr = (urls || []).filter(Boolean);
+      return { ...r, images: arr.join(","), image: arr[0] || "" };
+    }));
+  };
+
+  // Upload selected files for a specific row → append URLs to that row.
+  const handleRowImageFiles = async (idx, files) => {
+    const arr = Array.from(files || []);
+    if (!arr.length) return;
+    if (!cloudinaryReady()) {
+      toast("⚠️ Cloudinary غير مُعدّ — أضف المفاتيح في .env.local", "error");
+      return;
+    }
+    const existing = (rows[idx]?.images || "").split(",").map((s) => s.trim()).filter(Boolean);
+    try {
+      const uploaded = [];
+      for (const f of arr) {
+        const url = await uploadToCloudinary(f);
+        uploaded.push(url);
+      }
+      setRowImages(idx, [...existing, ...uploaded]);
+      toast(`✅ تم رفع ${uploaded.length} صورة للمنتج`, "success");
+    } catch (err) {
+      console.error(err);
+      toast("فشل رفع بعض الصور", "error");
+    }
+  };
+
+  const removeRowImage = (rowIdx, imgIdx) => {
+    const list = (rows[rowIdx]?.images || "").split(",").map((s) => s.trim()).filter(Boolean);
+    list.splice(imgIdx, 1);
+    setRowImages(rowIdx, list);
+  };
+
+  const removeRow = (idx) => {
+    setRows((prev) => prev.filter((_, i) => i !== idx));
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'Tajawal',sans-serif", direction: "rtl" }}>
@@ -212,32 +251,90 @@ export default function BulkImport() {
 
           {rows.length > 0 && (
             <>
-              <div style={{ maxHeight: 340, overflow: "auto", border: "1px solid #E2E8F0", borderRadius: 12, marginBottom: 16 }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                  <thead style={{ position: "sticky", top: 0, background: "#F8FAFC" }}>
-                    <tr>
-                      {previewKeys.map((h) => (
-                        <th key={h} style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, fontSize: 12, color: "#64748B", borderBottom: "1px solid #E2E8F0" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.slice(0, 20).map((r, i) => (
-                      <tr key={i} style={{ borderBottom: "1px solid #F1F5F9" }}>
-                        {previewKeys.map((h) => (
-                          <td key={h} style={{ padding: "8px 12px", color: "#334155" }}>
-                            {String(r[h] ?? "").slice(0, 40)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {rows.length > 20 && (
-                  <div style={{ padding: "10px", textAlign: "center", fontSize: 12, color: "#94A3B8", background: "#F8FAFC" }}>
-                    + {rows.length - 20} صفوف إضافية...
-                  </div>
-                )}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#0F172A" }}>
+                  📦 المنتجات الجاهزة للحفظ ({rows.length})
+                </div>
+                <div style={{ fontSize: 12, color: "#64748B" }}>
+                  💡 اضغط <b>📷 صور</b> لإرفاق صور كل منتج قبل الحفظ
+                </div>
+              </div>
+
+              <div style={{ maxHeight: 560, overflow: "auto", border: "1px solid #E2E8F0", borderRadius: 12, marginBottom: 16, background: "#F8FAFC", padding: 12, display: "grid", gap: 10 }}>
+                {rows.map((r, i) => {
+                  const imgList = String(r.images || "").split(",").map((s) => s.trim()).filter(Boolean);
+                  const hasImages = imgList.length > 0;
+                  return (
+                    <div key={i} style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 14px", display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 14, alignItems: "center" }}>
+                      <div style={{ minWidth: 30, fontWeight: 800, color: "#94A3B8", fontSize: 13 }}>#{i + 1}</div>
+
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
+                          <span style={{ fontWeight: 800, color: "#0F172A", fontSize: 14 }}>
+                            {r.nameEn || r.name || "(بدون اسم)"}
+                          </span>
+                          {r.name && r.nameEn && (
+                            <span style={{ fontSize: 12, color: "#64748B" }}>— {r.name}</span>
+                          )}
+                        </div>
+                        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11, color: "#64748B" }}>
+                          {r.vendorSku && (
+                            <span style={{ background: "#EEF2FF", color: "#4F46E5", padding: "2px 8px", borderRadius: 6, fontWeight: 700 }}>
+                              🏷️ Vendor SKU: <b>{r.vendorSku}</b>
+                            </span>
+                          )}
+                          {(r.price || r.priceWithoutTax) && (
+                            <span>💵 {r.price || r.priceWithoutTax} AED</span>
+                          )}
+                          {r.brand && <span>🏭 {r.brand}</span>}
+                          {r.color && <span>🎨 {r.color}</span>}
+                        </div>
+
+                        {hasImages && (
+                          <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                            {imgList.map((url, j) => (
+                              <div key={j} style={{ position: "relative", width: 50, height: 50, borderRadius: 8, overflow: "hidden", border: "1px solid #E2E8F0" }}>
+                                <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                <button
+                                  onClick={() => removeRowImage(i, j)}
+                                  title="حذف"
+                                  style={{ position: "absolute", top: 2, right: 2, width: 18, height: 18, borderRadius: "50%", background: "rgba(220,38,38,.9)", color: "#fff", border: "none", cursor: "pointer", fontSize: 11, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                                >×</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <input
+                          ref={(el) => { fileInputRefs.current[i] = el; }}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={(e) => { handleRowImageFiles(i, e.target.files); e.target.value = ""; }}
+                          style={{ display: "none" }}
+                        />
+                        <button
+                          onClick={() => fileInputRefs.current[i]?.click()}
+                          style={{
+                            background: hasImages ? "#F0FDF4" : "#EEF2FF",
+                            color: hasImages ? "#15803D" : "#4F46E5",
+                            border: `1.5px solid ${hasImages ? "#BBF7D0" : "#C7D2FE"}`,
+                            borderRadius: 10, padding: "8px 12px", fontWeight: 800, fontSize: 12, cursor: "pointer", fontFamily: "'Tajawal',sans-serif", whiteSpace: "nowrap"
+                          }}
+                        >
+                          📷 {hasImages ? `صور (${imgList.length})` : "صور"}
+                        </button>
+                        <button
+                          onClick={() => removeRow(i)}
+                          title="حذف من القائمة"
+                          style={{ background: "#FEF2F2", color: "#DC2626", border: "1.5px solid #FECACA", borderRadius: 10, width: 32, height: 32, fontSize: 14, cursor: "pointer" }}
+                        >🗑️</button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               <button onClick={submit} disabled={loading} style={{ ...btnPrimary, padding: "13px 30px", fontSize: 15, opacity: loading ? 0.6 : 1 }}>
@@ -276,7 +373,8 @@ export default function BulkImport() {
             <li><b>سعر التكلفة (costPrice):</b> يظهر للأدمن فقط — العميل يشوف سعر البيع</li>
             <li><b>الترجمة التلقائية:</b> لو المنتج باسم/وصف إنكليزي فقط، يترجمها للعربي عند الرفع</li>
             <li><b>ملفات الموردين:</b> يتعرف تلقائياً على أعمدة مثل Product Name / Vendor Sku / Cost Price</li>
-            <li><b>الصور:</b> تُتجاهل من ملف المورد — ضيفها يدوياً من صفحة تعديل المنتج</li>
+            <li><b>الصور:</b> بعد قراءة الملف، اضغط <b>📷 صور</b> بجانب كل منتج لرفع صوره من جهازك قبل الحفظ</li>
+            <li><b>Vendor SKU:</b> يُحفظ ويظهر للأدمن فقط (ما يظهر للعميل) — يساعدك تطابق الصور مع المنتجات</li>
             <li>إذا كان هناك منتج بنفس <b>sku</b> فسيتم تحديثه بدل إضافته</li>
           </ul>
         </div>

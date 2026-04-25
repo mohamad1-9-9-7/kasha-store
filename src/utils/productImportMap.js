@@ -46,6 +46,8 @@ const SUPPLIER_MAP = {
   "description": "descriptionEn",
   "product category": "category",
   "brand": "brand",
+  // Vendor SKU is imported into BOTH sku (public ref) and vendorSku
+  // (admin-only — used to match local image files to products at upload time)
   "vendor sku": "sku",
   "product id": "id",
   "cost price without tax": "costPrice",
@@ -94,6 +96,12 @@ function mapRowWith(rawRow, aliasMap) {
       const parts = String(val).split(/[,|]/).map((s) => s.trim()).filter(Boolean);
       imageUrls.push(...parts);
       continue;
+    }
+
+    // Also stash the original Vendor SKU into a separate admin-only field.
+    // Admin uses this to match locally-stored image filenames to the right product.
+    if (nk === "vendor sku") {
+      if (out.vendorSku === undefined) out.vendorSku = String(val).trim();
     }
 
     const target = aliasMap[nk];
