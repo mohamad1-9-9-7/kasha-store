@@ -128,32 +128,28 @@ export default function BundlePage() {
       const cityLabel = isAr ? (cityObj?.label || f.city) : (cityObj?.labelEn || f.city);
       const earnedPoints = POINTS_ENABLED ? Math.floor(grandTotal * POINTS_PER_AED) : 0;
 
+      // Server recomputes all money fields (subtotal, bundle discount, VAT, total)
+      // and credits loyalty points inside the order transaction.
       const createdOrder = await apiFetch("/api/orders", {
         method: "POST",
         body: {
-          id: orderId, status: "NEW", type: "BUNDLE",
+          id: orderId, type: "BUNDLE",
           customer: { name: f.name, phone: f.phone, city: f.city, cityLabel, address: f.address, notes: f.notes || "" },
-          items: bundle.map(it => ({ id: it.id, name: it.name, price: Number(it.price) || 0, qty: it.qty || 1, image: it.image || "", category: it.category || "", variantSummary: it.variantSummary || [] })),
-          totals: {
-            subtotal,
-            bundleDiscount: discountAmt,
-            bundleTier: tier?.pct || 0,
-            vatPercent: VAT_ENABLED ? VAT_PERCENT : 0,
-            vatIncluded: VAT_INCLUDED,
-            vatAmount,
-            grandTotal,
-            currency: "AED",
-          },
-          payment: { method: f.payMethod || "cash", status: "COD_PENDING" },
-          loyaltyPoints: { earned: earnedPoints, redeemed: 0 },
+          items: bundle.map(it => ({
+            id: it.id,
+            qty: it.qty || 1,
+            image: it.image || "",
+            category: it.category || "",
+            variantSummary: it.variantSummary || [],
+          })),
+          payment: { method: f.payMethod || "cash" },
         },
       });
 
-      /* نقاط الولاء */
-      if (user && POINTS_ENABLED && earnedPoints > 0) {
-        const newPoints = (user.points || 0) + earnedPoints;
+      /* نقاط الولاء — السيرفر يضيفها داخل الـtransaction، نحدّث localStorage للـUI فقط */
+      if (user && createdOrder?.loyaltyPoints?.earned) {
+        const newPoints = (user.points || 0) + Number(createdOrder.loyaltyPoints.earned);
         localStorage.setItem("user", JSON.stringify({ ...user, points: newPoints }));
-        apiFetch(`/api/users/${user.phone}/points`, { method: "PUT", body: { points: newPoints } }).catch(() => {});
       }
 
       /* واتساب */

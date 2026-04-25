@@ -2,13 +2,31 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
+const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
-const { initDB } = require("./db");
+const { initDB, pool } = require("./db");
 
 const app = express();
 
 // Behind a proxy/load balancer (Vercel/Render/Heroku)
 app.set("trust proxy", 1);
+
+// ── Request ID — attach a short correlation id to every request so we can grep
+// logs to pinpoint a single bad request among the noise.
+app.use((req, res, next) => {
+  req.id = crypto.randomBytes(4).toString("hex");
+  res.setHeader("X-Request-Id", req.id);
+  next();
+});
+
+// Crash safety: log unhandled rejections / uncaught exceptions so they don't
+// silently kill the process on Render without a trace.
+process.on("unhandledRejection", (reason) => {
+  console.error("[UNHANDLED_REJECTION]", reason?.stack || reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[UNCAUGHT_EXCEPTION]", err?.stack || err);
+});
 
 // Security headers
 app.use(helmet());
@@ -58,17 +76,54 @@ app.use("/api/backup", require("./routes/backup"));
 
 app.get("/", (req, res) => res.json({ status: "كشخة backend يشتغل ✅" }));
 
-// Centralized error handler — hides internals from the client
+// Health probe — used by Render and uptime monitors.
+// Verifies DB connectivity, doesn't expose internals.
+app.get("/healthz", async (req, res) => {
+  try {
+    await pool.query("SELECT 1");
+    res.json({ ok: true, ts: new Date().toISOString() });
+  } catch (e) {
+    res.status(503).json({ ok: false });
+  }
+});
+
+// Centralized error handler — hides internals from the client, but logs
+// enough context (request id, route, method, status, message) to debug.
 app.use((err, req, res, next) => {
-  console.error("Unhandled error:", err);
+  const status = err.status || 500;
+  console.error(JSON.stringify({
+    level: "error",
+    rid: req.id,
+    method: req.method,
+    path: req.originalUrl,
+    status,
+    message: err?.message || String(err),
+    // Stack only in non-production to avoid leaking paths in logs aggregators
+    stack: process.env.NODE_ENV === "production" ? undefined : err?.stack,
+    ts: new Date().toISOString(),
+  }));
   if (res.headersSent) return next(err);
-  res.status(err.status || 500).json({ error: "خطأ في الخادم" });
+  res.status(status).json({ error: "خطأ في الخادم", rid: req.id });
 });
 
 const PORT = process.env.PORT || 3001;
-initDB()
+const server = initDB()
   .then(() => app.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`)))
   .catch((e) => {
     console.error("DB init failed:", e);
     process.exit(1);
   });
+
+// Graceful shutdown — Render sends SIGTERM ~30s before forcibly killing the
+// container. Drain HTTP + DB connections so in-flight requests aren't truncated.
+function shutdown(signal) {
+  console.log(`[${signal}] shutting down gracefully...`);
+  Promise.resolve(server).then((s) => {
+    s?.close?.(() => {
+      pool.end().finally(() => process.exit(0));
+    });
+    setTimeout(() => process.exit(0), 8000).unref();
+  });
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT",  () => shutdown("SIGINT"));

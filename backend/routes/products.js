@@ -27,12 +27,35 @@ function stripPrivate(data) {
   return rest;
 }
 
-// GET all products (public — non-admins never see costPrice)
+// GET products (public — non-admins never see costPrice).
+// Backwards-compatible: if no `?page` is passed, returns the first 500 products
+// as a flat array (legacy callers expect this). Pass ?page=1&limit=50 for proper
+// paginated response with metadata.
 router.get("/", async (req, res) => {
   try {
-    const { rows } = await pool.query("SELECT data FROM products ORDER BY created_at");
     const admin = isAdminRequest(req);
-    res.json(rows.map((r) => admin ? r.data : stripPrivate(r.data)));
+    const paginated = req.query.page != null || req.query.limit != null;
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 500));
+    const page  = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
+
+    const { rows } = await pool.query(
+      "SELECT data FROM products ORDER BY created_at LIMIT $1 OFFSET $2",
+      [limit, offset]
+    );
+    const items = rows.map((r) => admin ? r.data : stripPrivate(r.data));
+
+    if (!paginated) return res.json(items);
+
+    const { rows: cRows } = await pool.query("SELECT COUNT(*)::int AS c FROM products");
+    const total = cRows[0]?.c || 0;
+    res.json({
+      items,
+      page,
+      limit,
+      total,
+      hasMore: offset + items.length < total,
+    });
   } catch (e) {
     console.error("GET /products:", e);
     res.status(500).json({ error: "خطأ في الخادم" });

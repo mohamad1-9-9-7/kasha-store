@@ -1,28 +1,36 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import HomePage from "./pages/HomePage";
-import CategoryPage from "./pages/CategoryPage";
-import ProductDetails from "./pages/ProductDetails";
-import CartPage from "./pages/CartPage";
-import UserLogin from "./pages/UserLogin";
-import Register from "./pages/Register";
-import AdminDashboard from "./pages/AdminDashboard";
-import AddProduct from "./pages/AddProduct";
-import UsersList from "./pages/UsersList";
-import ManageCategories from "./pages/ManageCategories";
-import AdminOrders from "./pages/AdminOrders";
-import CouponsPage from "./pages/CouponsPage";
-import MyOrders from "./pages/MyOrders";
-import SearchPage from "./pages/SearchPage";
-import ProfilePage from "./pages/ProfilePage";
-import WishlistPage from "./pages/WishlistPage";
-import NotFound from "./pages/NotFound";
-import BundlePage from "./pages/BundlePage";
-import AdminLogin from "./pages/AdminLogin";
-import BulkImport from "./pages/BulkImport";
 import AnalyticsPixels from "./components/AnalyticsPixels";
 
-// ✅ قراءة آمنة من localStorage (تمنع كسر التطبيق لو JSON فاسد)
+// Eager: pages that load on first paint (homepage + most-visited storefront pages)
+import HomePage from "./pages/HomePage";
+
+// Lazy: split bundles per route. Admin and seldom-visited pages are deferred so
+// first-time visitors don't download the admin dashboard / PDF lib / etc. just to
+// browse products. Each route loads its own chunk on demand.
+const CategoryPage      = lazy(() => import("./pages/CategoryPage"));
+const ProductDetails    = lazy(() => import("./pages/ProductDetails"));
+const CartPage          = lazy(() => import("./pages/CartPage"));
+const SearchPage        = lazy(() => import("./pages/SearchPage"));
+const UserLogin         = lazy(() => import("./pages/UserLogin"));
+const Register          = lazy(() => import("./pages/Register"));
+const MyOrders          = lazy(() => import("./pages/MyOrders"));
+const ProfilePage       = lazy(() => import("./pages/ProfilePage"));
+const WishlistPage      = lazy(() => import("./pages/WishlistPage"));
+const BundlePage        = lazy(() => import("./pages/BundlePage"));
+const NotFound          = lazy(() => import("./pages/NotFound"));
+
+// Admin-only — never loaded for storefront visitors
+const AdminLogin        = lazy(() => import("./pages/AdminLogin"));
+const AdminDashboard    = lazy(() => import("./pages/AdminDashboard"));
+const AddProduct        = lazy(() => import("./pages/AddProduct"));
+const UsersList         = lazy(() => import("./pages/UsersList"));
+const ManageCategories  = lazy(() => import("./pages/ManageCategories"));
+const AdminOrders       = lazy(() => import("./pages/AdminOrders"));
+const CouponsPage       = lazy(() => import("./pages/CouponsPage"));
+const BulkImport        = lazy(() => import("./pages/BulkImport"));
+
+// Safe localStorage read (broken JSON shouldn't crash the app)
 const safeGetUser = () => {
   try {
     const raw = localStorage.getItem("user");
@@ -32,86 +40,61 @@ const safeGetUser = () => {
   }
 };
 
-function App() {
-  useLocation(); // ✅ يخلي المكون يعمل re-render لما تتغير الصفحة
+const RouteFallback = () => (
+  <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748B", fontFamily: "'Tajawal',sans-serif" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 15 }}>
+      <span style={{ display: "inline-block", width: 18, height: 18, border: "2.5px solid #E2E8F0", borderTopColor: "#6366F1", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+      <span>...</span>
+    </div>
+    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+  </div>
+);
 
-  // ✅ قراءة مباشرة من localStorage بكل رندر (بتمنع race condition بعد تسجيل الدخول)
+function App() {
+  useLocation(); // forces re-render on route change
+
   const user = safeGetUser();
   // Admin gate: flag + token must both exist. Server still re-validates via JWT.
   const isAdmin =
     localStorage.getItem("isAdmin") === "true" &&
     !!localStorage.getItem("token");
 
-  // ✅ عرض مؤقت أثناء جلب المستخدم
   if (user === null && localStorage.getItem("user")) {
     return <div style={{ textAlign: "center", padding: "50px" }}>⏳ جاري تحميل الحساب...</div>;
   }
 
   return (
     <>
-    <AnalyticsPixels />
-    <Routes>
-      <Route path="/" element={<Navigate to="/home" replace />} />
-      <Route path="/user-login" element={<UserLogin />} />
-      <Route path="/admin-login" element={<AdminLogin />} />
-      <Route path="/register" element={<Register />} />
+      <AnalyticsPixels />
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          <Route path="/" element={<Navigate to="/home" replace />} />
+          <Route path="/user-login" element={<UserLogin />} />
+          <Route path="/admin-login" element={<AdminLogin />} />
+          <Route path="/register" element={<Register />} />
 
-      <Route path="/home" element={<HomePage />} />
-      <Route path="/category/:categoryId" element={<CategoryPage />} />
-      <Route path="/product/:id" element={<ProductDetails />} />
-      <Route path="/cart" element={<CartPage />} />
+          <Route path="/home" element={<HomePage />} />
+          <Route path="/category/:categoryId" element={<CategoryPage />} />
+          <Route path="/product/:id" element={<ProductDetails />} />
+          <Route path="/cart" element={<CartPage />} />
 
-      <Route
-        path="/admin-dashboard"
-        element={isAdmin ? <AdminDashboard /> : <Navigate to="/admin-login" replace />}
-      />
-      <Route
-        path="/add-product"
-        element={isAdmin ? <AddProduct /> : <Navigate to="/admin-login" replace />}
-      />
-      <Route
-        path="/customers"
-        element={isAdmin ? <UsersList /> : <Navigate to="/admin-login" replace />}
-      />
-      <Route
-        path="/manage-categories"
-        element={isAdmin ? <ManageCategories /> : <Navigate to="/admin-login" replace />}
-      />
-      <Route
-        path="/admin-orders"
-        element={isAdmin ? <AdminOrders /> : <Navigate to="/admin-login" replace />}
-      />
-      <Route
-        path="/coupons"
-        element={isAdmin ? <CouponsPage /> : <Navigate to="/admin-login" replace />}
-      />
-      <Route
-        path="/bulk-import"
-        element={isAdmin ? <BulkImport /> : <Navigate to="/admin-login" replace />}
-      />
+          <Route path="/admin-dashboard"  element={isAdmin ? <AdminDashboard />   : <Navigate to="/admin-login" replace />} />
+          <Route path="/add-product"      element={isAdmin ? <AddProduct />       : <Navigate to="/admin-login" replace />} />
+          <Route path="/customers"        element={isAdmin ? <UsersList />        : <Navigate to="/admin-login" replace />} />
+          <Route path="/manage-categories" element={isAdmin ? <ManageCategories /> : <Navigate to="/admin-login" replace />} />
+          <Route path="/admin-orders"     element={isAdmin ? <AdminOrders />      : <Navigate to="/admin-login" replace />} />
+          <Route path="/coupons"          element={isAdmin ? <CouponsPage />      : <Navigate to="/admin-login" replace />} />
+          <Route path="/bulk-import"      element={isAdmin ? <BulkImport />       : <Navigate to="/admin-login" replace />} />
 
-      {/* ✅ صفحات المستخدم */}
-      <Route
-        path="/my-orders"
-        element={user ? <MyOrders /> : <Navigate to="/user-login" replace />}
-      />
-      <Route
-        path="/profile"
-        element={user ? <ProfilePage /> : <Navigate to="/user-login" replace />}
-      />
-      <Route
-        path="/wishlist"
-        element={user ? <WishlistPage /> : <Navigate to="/user-login" replace />}
-      />
-      <Route path="/search" element={<SearchPage />} />
-      <Route
-        path="/bundle"
-        element={user ? <BundlePage /> : <Navigate to="/user-login" replace />}
-      />
+          <Route path="/my-orders" element={user ? <MyOrders />     : <Navigate to="/user-login" replace />} />
+          <Route path="/profile"   element={user ? <ProfilePage />  : <Navigate to="/user-login" replace />} />
+          <Route path="/wishlist"  element={user ? <WishlistPage /> : <Navigate to="/user-login" replace />} />
+          <Route path="/search"    element={<SearchPage />} />
+          <Route path="/bundle"    element={user ? <BundlePage />   : <Navigate to="/user-login" replace />} />
 
-      {/* ✅ 404 */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
     </>
   );
 }

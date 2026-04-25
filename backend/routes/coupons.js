@@ -2,8 +2,10 @@ const router = require("express").Router();
 const { pool } = require("../db");
 const { requireAdmin } = require("../middleware/auth");
 
-// GET all coupons (public — frontend validates locally; consider moving to /validate)
-router.get("/", async (req, res) => {
+// GET all coupons — ADMIN ONLY.
+// Coupons may include private/VIP codes; the storefront validates a code via
+// POST /coupons/validate (which only returns the bearer's own coupon details).
+router.get("/", requireAdmin, async (req, res) => {
   try {
     const { rows } = await pool.query("SELECT data FROM coupons ORDER BY created_at");
     res.json(rows.map((r) => r.data));
@@ -82,45 +84,9 @@ router.delete("/:id", requireAdmin, async (req, res) => {
   }
 });
 
-// POST increment coupon uses (public — called on order creation).
-// Atomic: SELECT ... FOR UPDATE + validate + UPDATE in one transaction.
-router.post("/:code/use", async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const code = req.params.code.toUpperCase();
-    await client.query("BEGIN");
-    const { rows } = await client.query(
-      "SELECT data FROM coupons WHERE id = $1 FOR UPDATE",
-      [code]
-    );
-    if (!rows.length) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ error: "الكوبون غير موجود" });
-    }
-    const c = rows[0].data;
-    if (c.active === false) {
-      await client.query("ROLLBACK");
-      return res.status(410).json({ error: "الكوبون غير نشط" });
-    }
-    if (c.expiry && Date.now() > new Date(c.expiry).getTime()) {
-      await client.query("ROLLBACK");
-      return res.status(410).json({ error: "انتهت صلاحية الكوبون" });
-    }
-    if (c.maxUses && (c.uses || 0) >= c.maxUses) {
-      await client.query("ROLLBACK");
-      return res.status(410).json({ error: "تم استنفاد الكوبون" });
-    }
-    const updated = { ...c, uses: (c.uses || 0) + 1 };
-    await client.query("UPDATE coupons SET data = $1 WHERE id = $2", [updated, code]);
-    await client.query("COMMIT");
-    res.json(updated);
-  } catch (e) {
-    try { await client.query("ROLLBACK"); } catch {}
-    console.error("POST /coupons/:code/use:", e);
-    res.status(500).json({ error: "خطأ في الخادم" });
-  } finally {
-    client.release();
-  }
-});
+// NOTE: The legacy `POST /:code/use` endpoint was removed. Coupon usage is
+// now incremented atomically inside the order-creation transaction
+// (see backend/routes/orders.js). Exposing a public bump endpoint allowed
+// bots to deplete coupon capacity without ever placing a real order.
 
 module.exports = router;

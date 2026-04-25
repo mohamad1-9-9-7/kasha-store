@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useState } from "react";
+import { useLang } from "./LanguageContext";
 
 const ToastCtx = createContext(null);
 
@@ -6,6 +7,8 @@ let _id = 0;
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
+  const { lang } = useLang() || { lang: "en" };
+  const isRtl = lang === "ar";
 
   const toast = useCallback((msg, type = "success", duration = 3500) => {
     const id = ++_id;
@@ -26,7 +29,7 @@ export function ToastProvider({ children }) {
   return (
     <ToastCtx.Provider value={toast}>
       {children}
-      <div style={{ position: "fixed", top: 20, left: 20, zIndex: 9999, display: "flex", flexDirection: "column", gap: 10, direction: "rtl", fontFamily: "'Tajawal',sans-serif" }}>
+      <div style={{ position: "fixed", top: 20, [isRtl ? "right" : "left"]: 20, zIndex: 9999, display: "flex", flexDirection: "column", gap: 10, direction: isRtl ? "rtl" : "ltr", fontFamily: "'Tajawal',sans-serif" }}>
         {toasts.map(t => {
           const c = COLORS[t.type] || COLORS.info;
           return (

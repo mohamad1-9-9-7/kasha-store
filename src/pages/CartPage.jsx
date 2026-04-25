@@ -10,7 +10,7 @@ import { useWishlist } from "../context/WishlistContext";
 import { T } from "../i18n";
 import { useProducts } from "../hooks/useProducts";
 import { useSettings } from "../hooks/useSettings";
-import { useCoupons, incrementCouponUses } from "../hooks/useCoupons";
+import { validateCouponCode } from "../hooks/useCoupons";
 import InvoiceModal from "../components/InvoiceModal";
 import TruckSuccess from "../components/TruckSuccess";
 import { trackEvent } from "../components/AnalyticsPixels";
@@ -27,17 +27,17 @@ const EMIRATES = [
   { value: "fujairah",       label: "الفجيرة",      labelEn: "Fujairah" },
 ];
 
-/* ── كوبونات — التحقق يصير داخل Component بعد ما يتحمل الكوبونات من Firebase ── */
-function validateCoupon(coupons, code, subtotal) {
-  const c = coupons.find(x => x.code === code.toUpperCase() && x.active);
-  if (!c)                                          return { error: "رمز الكوبون غير صحيح" };
-  if (c.expiry && new Date(c.expiry) < new Date()) return { error: "انتهت صلاحية هذا الكوبون" };
-  if (c.uses >= c.maxUses)                         return { error: "تم استنفاد هذا الكوبون" };
-  if (subtotal < c.minOrder)                       return { error: `الحد الأدنى للطلب ${fmt(c.minOrder)}` };
-  const discount = c.type === "percent"
-    ? Math.round((subtotal * c.value) / 100)
-    : Math.min(c.value, subtotal);
-  return { coupon: c, discount };
+/* Discount preview calculation. The server is the source of truth for the
+   final amount (recomputed on order create); this is just a UI hint. */
+function previewCouponDiscount(coupon, subtotal) {
+  if (!coupon) return 0;
+  const value = Number(coupon.value) || 0;
+  const minOrder = Number(coupon.minOrder) || 0;
+  if (subtotal < minOrder) return 0;
+  if (coupon.type === "percent" || coupon.type === "percentage") {
+    return Math.round((subtotal * value) / 100);
+  }
+  return Math.min(value, subtotal);
 }
 
 const S = {
@@ -54,7 +54,6 @@ export default function CartPage() {
   const { toggle: wishlistToggle, isWishlisted } = useWishlist();
   const { products: allProducts } = useProducts();
   const { settings: storeSettings } = useSettings();
-  const { coupons: allCoupons } = useCoupons();
 
   /* ── إعدادات من لوحة التحكم ── */
   const FREE_SHIP_THRESHOLD = Number(storeSettings.freeShipThreshold) || 200;
@@ -169,13 +168,27 @@ export default function CartPage() {
     toast(isAr ? `❤️ ${nm} محفوظ للمفضلة` : `❤️ ${nm} saved to wishlist`, "success");
   };
 
-  /* ── كوبون ── */
-  const applyCoupon = () => {
-    if (!couponInput.trim()) return;
-    const result = validateCoupon(allCoupons, couponInput.trim(), subtotal);
-    if (result.error) { setCouponError(result.error); setAppliedCoupon(null); setCouponDiscount(0); return; }
-    setCouponError(""); setAppliedCoupon(result.coupon); setCouponDiscount(result.discount);
-    toast(`🎉 ${isAr ? "تم تطبيق الكوبون! وفّرت" : "Coupon applied! You saved"} ${fmt(result.discount)}`, "success");
+  /* ── كوبون — التحقق على السيرفر، السيرفر يعيد الحساب وقت إرسال الطلب ── */
+  const applyCoupon = async () => {
+    const code = couponInput.trim();
+    if (!code) return;
+    try {
+      const c = await validateCouponCode(code);
+      const discount = previewCouponDiscount(c, subtotal);
+      if (subtotal < (Number(c.minOrder) || 0)) {
+        setCouponError(isAr ? `الحد الأدنى للطلب ${fmt(c.minOrder)}` : `Minimum order ${fmt(c.minOrder)}`);
+        setAppliedCoupon(null); setCouponDiscount(0);
+        return;
+      }
+      setCouponError("");
+      setAppliedCoupon(c);
+      setCouponDiscount(discount);
+      toast(`🎉 ${isAr ? "تم تطبيق الكوبون! وفّرت" : "Coupon applied! You saved"} ${fmt(discount)}`, "success");
+    } catch (e) {
+      setCouponError(e?.message || (isAr ? "رمز الكوبون غير صحيح" : "Invalid coupon code"));
+      setAppliedCoupon(null);
+      setCouponDiscount(0);
+    }
   };
   const removeCoupon = () => { setAppliedCoupon(null); setCouponDiscount(0); setCouponInput(""); setCouponError(""); };
 
@@ -267,6 +280,9 @@ export default function CartPage() {
       const cityLabel = isAr ? cityObj?.label : cityObj?.labelEn || form.city;
       const earned    = POINTS_ENABLED ? Math.floor(grandTotal * POINTS_PER_AED) : 0;
 
+      // We send ONLY the inputs the server needs. The server recomputes
+      // every monetary field (subtotal, discounts, shipping, VAT, totals,
+      // points earned/redeemed) so the client can't tamper with prices.
       const createdOrder = await apiFetch("/api/orders", {
         method: "POST",
         body: {
@@ -277,45 +293,41 @@ export default function CartPage() {
             address: form.address, notes: form.notes,
             location: locationData ? { lat: locationData.lat, lng: locationData.lng, mapLink: `https://maps.google.com/?q=${locationData.lat},${locationData.lng}` } : null,
           },
-          items: (items || []).map(it => ({ id: it.id, name: it.name, price: Number(it.price) || 0, qty: Number(it.qty) || 1, image: it.image || "", category: it.category || "", variantSummary: it.variantSummary || [] })),
-          totals: {
-            subtotal,
-            couponCode: appliedCoupon?.code || null,
-            couponDiscount,
-            pointsDiscount,
-            shippingFee: isFreeShip ? 0 : dynamicShippingFee,
-            shippingZone: shipCalc.zone?.name || null,
-            totalWeightKg: totalWeight,
-            vatPercent: VAT_ENABLED ? VAT_PERCENT : 0,
-            vatIncluded: VAT_INCLUDED,
-            vatAmount,
-            grandTotal: (isFreeShip ? grandTotal : grandTotal + dynamicShippingFee),
-            currency: "AED",
+          items: (items || []).map(it => ({
+            id: it.id,
+            qty: Number(it.qty) || 1,
+            // Pass weight so server can compute shipping per zone (informational; price is from DB)
+            weight: Number(it.weight) || 0,
+            image: it.image || "",
+            category: it.category || "",
+            variantSummary: it.variantSummary || [],
+          })),
+          couponCode: appliedCoupon?.code || null,
+          redeemPoints: !!redeemPoints,
+          payment: {
+            method: form.payMethod,
+            transferRef: form.payMethod === "bank" ? form.transferRef : "",
           },
-          payment: { method: form.payMethod, transferRef: form.payMethod === "bank" ? form.transferRef : "", status: form.payMethod === "cash" ? "COD_PENDING" : "BANK_PENDING" },
-          loyaltyPoints: { earned, redeemed: redeemPoints ? maxRedeemSets * POINTS_REDEEM_RATE : 0 },
         },
       });
 
-      if (appliedCoupon) {
-        incrementCouponUses(appliedCoupon.code).catch((err) =>
-          console.error("incrementCouponUses failed:", err?.message || err)
-        );
-      }
+      // Server applies coupon usage + user points inside the order transaction.
+      // No need to call /api/coupons/:code/use or PUT /users/:id/points from here.
 
-      if (user) {
-        const redeemed  = redeemPoints ? maxRedeemSets * POINTS_REDEEM_RATE : 0;
-        const newPoints = (userPoints - redeemed) + earned;
+      // Refresh local user.points using the server-authoritative values from the response
+      if (user && createdOrder?.loyaltyPoints) {
+        const earnedSrv  = Number(createdOrder.loyaltyPoints.earned)   || 0;
+        const redeemedSrv = Number(createdOrder.loyaltyPoints.redeemed) || 0;
+        const newPoints = Math.max(0, (userPoints - redeemedSrv) + earnedSrv);
         localStorage.setItem("user", JSON.stringify({ ...user, points: newPoints }));
-        apiFetch(`/api/users/${user.phone}/points`, { method: "PUT", body: { points: newPoints } }).catch(() => {});
       }
 
       clearCart();
 
-      // Analytics: Purchase event
+      // Analytics: Purchase event — use server's grandTotal so it matches what the user paid
       try {
         trackEvent("Purchase", {
-          value: isFreeShip ? grandTotal : grandTotal + dynamicShippingFee,
+          value: Number(createdOrder?.totals?.grandTotal) || (isFreeShip ? grandTotal : grandTotal + dynamicShippingFee),
           currency: "AED",
           content_ids: (items || []).map((it) => String(it.id)),
           content_type: "product",

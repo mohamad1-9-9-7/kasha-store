@@ -86,7 +86,8 @@
       "Bash(npm ls *)",
       "Bash(curl -s 'http://localhost:5173/src/components/AnalyticsPixels.jsx')",
       "Bash(curl -s 'http://localhost:5173/src/hooks/useSettings.js')",
-      "Bash(curl -s 'http://localhost:5173/src/main.jsx')"
+      "Bash(curl -s 'http://localhost:5173/src/main.jsx')",
+      "Bash(grep -E \"\\\\.\\(jsx?|json\\)$\")"
     ]
   }
 }

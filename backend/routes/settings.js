@@ -1,6 +1,36 @@
 const router = require("express").Router();
+const jwt = require("jsonwebtoken");
 const { pool } = require("../db");
 const { requireAdmin } = require("../middleware/auth");
+
+// Admin-only fields — never returned to non-admin clients.
+// Leaking these lets attackers send fake admin notifications, hijack
+// webhooks, or impersonate the store on Telegram/WhatsApp.
+const ADMIN_ONLY_FIELDS = [
+  "adminWebhookUrl",
+  "waCloudToken",
+  "waCloudPhoneId",
+  "waAdminPhone",
+  "telegramBotToken",
+  "telegramChatId",
+];
+
+function isAdminRequest(req) {
+  const header = req.headers.authorization;
+  if (!header?.startsWith("Bearer ")) return false;
+  try {
+    const payload = jwt.verify(header.slice(7), process.env.JWT_SECRET);
+    return payload?.role === "admin";
+  } catch {
+    return false;
+  }
+}
+
+function stripAdminOnly(data) {
+  const out = { ...data };
+  for (const k of ADMIN_ONLY_FIELDS) delete out[k];
+  return out;
+}
 
 const DEFAULTS = {
   storeName: "كشخة",
@@ -58,11 +88,12 @@ function coerce(val, type) {
   return String(val ?? "");
 }
 
-// GET settings (public)
+// GET settings — public, but admin-only fields are stripped for non-admins
 router.get("/", async (req, res) => {
   try {
     const { rows } = await pool.query("SELECT data FROM settings WHERE id = 'main'");
-    res.json(rows.length ? { ...DEFAULTS, ...rows[0].data } : DEFAULTS);
+    const merged = rows.length ? { ...DEFAULTS, ...rows[0].data } : DEFAULTS;
+    res.json(isAdminRequest(req) ? merged : stripAdminOnly(merged));
   } catch (e) {
     console.error("GET /settings:", e);
     res.status(500).json({ error: "خطأ في الخادم" });

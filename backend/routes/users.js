@@ -32,12 +32,13 @@ router.get("/:id/points", requireAuth, async (req, res) => {
   }
 });
 
-// PUT update user points — user can only update own, admin can update any
-router.put("/:id/points", requireAuth, async (req, res) => {
+// PUT user points — ADMIN ONLY.
+// Regular users CANNOT set their own points; loyalty points are managed
+// by the order flow (POST /api/orders) which credits earnings and debits
+// redemptions in a single transaction. A user-writable points endpoint
+// would let any logged-in user grant themselves unlimited points.
+router.put("/:id/points", requireAdmin, async (req, res) => {
   try {
-    if (req.user?.role !== "admin" && req.user?.id !== req.params.id) {
-      return res.status(403).json({ error: "ممنوع" });
-    }
     const { points } = req.body;
     const newPoints = Number(points);
     if (!Number.isFinite(newPoints) || newPoints < 0) {
