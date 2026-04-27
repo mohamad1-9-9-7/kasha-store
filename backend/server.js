@@ -35,15 +35,23 @@ process.on("uncaughtException", (err) => {
 // Security headers
 app.use(helmet());
 
-// CORS — allow only configured frontend URL(s)
+// CORS — allow configured frontend URL(s), plus any localhost origin so the
+// dev server (5173, 5174, …) and Vite preview don't get blocked when hitting
+// the deployed backend. Localhost can never be reached by an external attacker
+// so it's safe to whitelist regardless of NODE_ENV.
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 const allowedOrigins = FRONTEND_URL.split(",").map((s) => s.trim()).filter(Boolean);
+const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 app.use(
   cors({
     origin: (origin, cb) => {
       if (!origin) return cb(null, true); // mobile apps / curl
+      if (LOCALHOST_RE.test(origin)) return cb(null, true);
       if (allowedOrigins.includes(origin)) return cb(null, true);
-      return cb(new Error("Not allowed by CORS"));
+      // Reject without throwing — throwing turns into a 500 from Express's
+      // default error handler, which is misleading. Returning false makes the
+      // browser block the request (correct CORS behavior) without poisoning logs.
+      return cb(null, false);
     },
     credentials: true,
   })
