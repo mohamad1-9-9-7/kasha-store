@@ -54,8 +54,13 @@ export default function AuthPage({ mode: initialMode = "login" }) {
       });
       setToken(token);
       localStorage.setItem("user", JSON.stringify(user));
-      localStorage.removeItem("isAdmin");
-      navigate("/home");
+      if (user?.isAdmin === true) {
+        localStorage.setItem("isAdmin", "true");
+        navigate("/admin-dashboard");
+      } else {
+        localStorage.removeItem("isAdmin");
+        navigate("/home");
+      }
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
   };

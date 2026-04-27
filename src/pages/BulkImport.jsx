@@ -65,7 +65,7 @@ export default function BulkImport() {
   const [markFeatured, setMarkFeatured] = useState(true);
 
   React.useEffect(() => {
-    if (localStorage.getItem("isAdmin") !== "true") navigate("/admin-login");
+    if (localStorage.getItem("isAdmin") !== "true") navigate("/user-login");
   }, []);
 
   const existingCatNames = categories

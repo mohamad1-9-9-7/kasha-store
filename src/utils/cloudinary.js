@@ -47,3 +47,30 @@ export async function uploadMultiple(files, onEachProgress = () => {}) {
     files.map((f, i) => uploadToCloudinary(f, (p) => onEachProgress(i, p)))
   );
 }
+
+/**
+ * Inject Cloudinary transformations into a delivery URL.
+ *   f_auto  → serve WebP/AVIF when the browser supports it (50-70% smaller)
+ *   q_auto  → automatic quality (Cloudinary picks best size/quality tradeoff)
+ *   w_<n>   → cap rendered width (use ~2x the displayed CSS width for retina)
+ *   c_fill  → crop to fit; combined with `g_auto` it picks the focal point
+ *
+ * Non-Cloudinary URLs (e.g. external images, placeholders) are returned unchanged.
+ *
+ * @param {string} url   Original Cloudinary URL
+ * @param {object} opts  { w?, h?, q?, format? }
+ * @returns {string}     Transformed URL, or original if not Cloudinary
+ */
+export function cldOptimize(url, opts = {}) {
+  if (!url || typeof url !== "string") return url;
+  if (!/res\.cloudinary\.com\/.+\/image\/upload\//.test(url)) return url;
+  // Don't double-inject if the URL already has a transformation segment
+  // (we look for f_auto / q_auto / w_ in the path right after /upload/)
+  if (/\/upload\/[^/]*(?:f_auto|q_auto|w_\d+)/.test(url)) return url;
+
+  const tx = ["f_auto", "q_auto"];
+  if (opts.w) tx.push(`w_${opts.w}`);
+  if (opts.h) tx.push(`h_${opts.h}`);
+  if (opts.w && opts.h) tx.push("c_fill", "g_auto");
+  return url.replace("/image/upload/", `/image/upload/${tx.join(",")}/`);
+}

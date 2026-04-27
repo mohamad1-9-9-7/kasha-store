@@ -28,10 +28,10 @@ export async function apiFetch(path, { body, ...options } = {}) {
     setToken(null);
     if (isAdminAction) {
       localStorage.removeItem("isAdmin");
-      if (!location.pathname.includes("/admin-login")) {
-        // وجّه الأدمن لتسجيل الدخول
+      if (!location.pathname.includes("/user-login")) {
+        // وجّه الأدمن لتسجيل الدخول الموحّد
         alert(res.status === 401 ? "⏰ انتهت جلسة الأدمن — سجّل دخول من جديد" : "🔒 هالحساب مو أدمن — سجّل دخول بحساب الأدمن");
-        location.href = "/admin-login";
+        location.href = "/user-login";
       }
     }
     const err = await res.json().catch(() => ({ error: res.status === 401 ? "جلسة منتهية" : "ممنوع" }));

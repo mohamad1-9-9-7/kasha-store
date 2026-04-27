@@ -20,8 +20,9 @@ const WishlistPage      = lazy(() => import("./pages/WishlistPage"));
 const BundlePage        = lazy(() => import("./pages/BundlePage"));
 const NotFound          = lazy(() => import("./pages/NotFound"));
 
-// Admin-only — never loaded for storefront visitors
-const AdminLogin        = lazy(() => import("./pages/AdminLogin"));
+// Admin-only — never loaded for storefront visitors. Admin signs in through
+// the same /user-login page; the server returns a JWT with role:"admin" and
+// the client routes them to /admin-dashboard from there.
 const AdminDashboard    = lazy(() => import("./pages/AdminDashboard"));
 const AddProduct        = lazy(() => import("./pages/AddProduct"));
 const UsersList         = lazy(() => import("./pages/UsersList"));
@@ -80,7 +81,8 @@ function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/home" replace />} />
           <Route path="/user-login" element={<UserLogin />} />
-          <Route path="/admin-login" element={<AdminLogin />} />
+          {/* Legacy /admin-login → unified login. Old bookmarks keep working. */}
+          <Route path="/admin-login" element={<Navigate to="/user-login" replace />} />
           <Route path="/register" element={<Register />} />
 
           <Route path="/home" element={<HomePage />} />
@@ -88,13 +90,13 @@ function App() {
           <Route path="/product/:id" element={<ProductDetails />} />
           <Route path="/cart" element={<CartPage />} />
 
-          <Route path="/admin-dashboard"  element={isAdmin ? <AdminDashboard />   : <Navigate to="/admin-login" replace />} />
-          <Route path="/add-product"      element={isAdmin ? <AddProduct />       : <Navigate to="/admin-login" replace />} />
-          <Route path="/customers"        element={isAdmin ? <UsersList />        : <Navigate to="/admin-login" replace />} />
-          <Route path="/manage-categories" element={isAdmin ? <ManageCategories /> : <Navigate to="/admin-login" replace />} />
-          <Route path="/admin-orders"     element={isAdmin ? <AdminOrders />      : <Navigate to="/admin-login" replace />} />
-          <Route path="/coupons"          element={isAdmin ? <CouponsPage />      : <Navigate to="/admin-login" replace />} />
-          <Route path="/bulk-import"      element={isAdmin ? <BulkImport />       : <Navigate to="/admin-login" replace />} />
+          <Route path="/admin-dashboard"  element={isAdmin ? <AdminDashboard />   : <Navigate to="/user-login" replace />} />
+          <Route path="/add-product"      element={isAdmin ? <AddProduct />       : <Navigate to="/user-login" replace />} />
+          <Route path="/customers"        element={isAdmin ? <UsersList />        : <Navigate to="/user-login" replace />} />
+          <Route path="/manage-categories" element={isAdmin ? <ManageCategories /> : <Navigate to="/user-login" replace />} />
+          <Route path="/admin-orders"     element={isAdmin ? <AdminOrders />      : <Navigate to="/user-login" replace />} />
+          <Route path="/coupons"          element={isAdmin ? <CouponsPage />      : <Navigate to="/user-login" replace />} />
+          <Route path="/bulk-import"      element={isAdmin ? <BulkImport />       : <Navigate to="/user-login" replace />} />
 
           <Route path="/my-orders" element={user ? <MyOrders />     : <Navigate to="/user-login" replace />} />
           <Route path="/profile"   element={user ? <ProfilePage />  : <Navigate to="/user-login" replace />} />

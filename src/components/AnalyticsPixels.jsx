@@ -57,15 +57,25 @@ function loadTikTok(id) {
   /* eslint-enable */
 }
 
+// Defer non-critical work until the browser is idle so analytics
+// scripts don't compete with first paint / hydration on mobile.
+const whenIdle = (fn) => {
+  if (typeof window === "undefined") return;
+  if ("requestIdleCallback" in window) window.requestIdleCallback(fn, { timeout: 4000 });
+  else setTimeout(fn, 2000);
+};
+
 export default function AnalyticsPixels() {
   const { settings } = useSettings();
   const location = useLocation();
 
-  // Load pixels once the IDs arrive
+  // Load pixels once the IDs arrive — deferred to idle to avoid blocking LCP
   useEffect(() => {
-    if (settings?.fbPixelId) loadFbPixel(settings.fbPixelId);
-    if (settings?.gaMeasurementId) loadGA(settings.gaMeasurementId);
-    if (settings?.tiktokPixelId) loadTikTok(settings.tiktokPixelId);
+    whenIdle(() => {
+      if (settings?.fbPixelId) loadFbPixel(settings.fbPixelId);
+      if (settings?.gaMeasurementId) loadGA(settings.gaMeasurementId);
+      if (settings?.tiktokPixelId) loadTikTok(settings.tiktokPixelId);
+    });
   }, [settings?.fbPixelId, settings?.gaMeasurementId, settings?.tiktokPixelId]);
 
   // Fire page view on route change

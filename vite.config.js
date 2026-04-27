@@ -13,6 +13,18 @@ export default defineConfig({
     include: ["react", "react-dom", "react-router-dom"],
   },
   build: {
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("react-router")) return "router";
+          if (id.includes("react-dom") || id.includes("/react/")) return "react";
+          if (id.includes("html2canvas") || id.includes("jspdf")) return "pdf";
+          if (id.includes("xlsx")) return "xlsx";
+          return "vendor";
+        },
+      },
+    },
   },
 });

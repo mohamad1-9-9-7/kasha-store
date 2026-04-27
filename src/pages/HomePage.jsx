@@ -5,6 +5,7 @@ import { useLang } from "../context/LanguageContext";
 import { T } from "../i18n";
 import { useCategories } from "../hooks/useCategories";
 import { useProducts } from "../hooks/useProducts";
+import { cldOptimize } from "../utils/cloudinary";
 import LangToggle from "../components/LangToggle";
 import SearchAutocomplete from "../components/SearchAutocomplete";
 import Hero3D from "../components/Hero3D";
@@ -98,7 +99,10 @@ export default function HomePage() {
   const t         = k => T[lang][k] ?? T.ar[k] ?? k;
   const isRtl     = lang === "ar";
   const user      = safeParse("user");
-  const isAdmin   = localStorage.getItem("isAdmin") === "true";
+  // Require BOTH the stand-alone flag AND the user object to claim admin —
+  // protects against a stale isAdmin flag left over from a previous admin
+  // session in the same browser. Real auth happens server-side via JWT role.
+  const isAdmin   = localStorage.getItem("isAdmin") === "true" && user?.isAdmin === true;
   const { categories: rawCats, loading: catsLoading } = useCategories();
   const cats = rawCats.filter(c => c?.name && !c.hidden);
   const { products: allProds } = useProducts();
@@ -175,6 +179,10 @@ export default function HomePage() {
           .cat-card-sub   { font-size: 11px !important; }
           .cat-card-pad   { padding: 12px !important; }
           .cat-card-ico   { font-size: 42px !important; }
+          /* Disable expensive GPU effects on mobile to keep scroll smooth */
+          .hero-dot       { display: none !important; }
+          .cat-card:hover { transform: none !important; box-shadow: 0 2px 10px rgba(0,0,0,.05) !important; }
+          .feat-card:hover{ transform: none !important; box-shadow: 0 2px 10px rgba(0,0,0,.05) !important; }
         }
         @media (max-width: 480px) {
           .prod-grid  { grid-template-columns: 1fr 1fr !important; }
@@ -348,7 +356,14 @@ export default function HomePage() {
                     onMouseOut={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(15,23,42,.04)"; e.currentTarget.style.borderColor = "#E2E8F0"; }}
                   >
                     {cat.image ? (
-                      <img src={cat.image} alt={catName(cat)}
+                      <img
+                        src={cldOptimize(cat.image, { w: 600, h: 600 })}
+                        alt={catName(cat)}
+                        loading={i < 4 ? "eager" : "lazy"}
+                        decoding="async"
+                        fetchpriority={i < 4 ? "high" : "low"}
+                        width={300}
+                        height={300}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                         onError={(e) => { e.currentTarget.style.display = "none"; }}
                       />
@@ -466,7 +481,7 @@ export default function HomePage() {
                     onMouseOver={e => { e.currentTarget.style.transform = "translateY(-5px)"; e.currentTarget.style.boxShadow = "0 16px 36px rgba(0,0,0,.1)"; }}
                     onMouseOut={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 10px rgba(0,0,0,.05)"; }}>
                     <div style={{ position: "relative", height: 180, overflow: "hidden", background: "#F8FAFC" }}>
-                      <img src={p.image || ""} alt={prodName(p)} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
+                      <img src={cldOptimize(p.image || "", { w: 500, h: 500 })} alt={prodName(p)} loading="lazy" decoding="async" width={250} height={250} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
                       <span style={{ position: "absolute", top: 8, right: 8, background: "#EF4444", color: "#fff", borderRadius: 999, padding: "3px 9px", fontSize: 11, fontWeight: 800 }}>{t("save_pct")} {pct}%</span>
                     </div>
                     <div style={{ padding: "12px 14px" }}>
@@ -502,7 +517,7 @@ export default function HomePage() {
                   onMouseOver={e => { e.currentTarget.style.transform = "translateY(-5px)"; e.currentTarget.style.boxShadow = "0 16px 36px rgba(0,0,0,.1)"; }}
                   onMouseOut={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 10px rgba(0,0,0,.05)"; }}>
                   <div style={{ height: 180, overflow: "hidden", background: "#F8FAFC" }}>
-                    <img src={p.image || ""} alt={prodName(p)} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
+                    <img src={cldOptimize(p.image || "", { w: 500, h: 500 })} alt={prodName(p)} loading="lazy" decoding="async" width={250} height={250} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
                   </div>
                   <div style={{ padding: "12px 14px" }}>
                     <div style={{ fontSize: 11, color: "#6366F1", fontWeight: 700, marginBottom: 4 }}>{p.category}</div>

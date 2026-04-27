@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
-import { C, shadow, r, slugify, fmt, fmtPrice, catName, prodName } from "../Theme";
+import { C, shadow, r, slugify, fmt, fmtPrice, priceVat, catName, prodName } from "../Theme";
+import { cldOptimize } from "../utils/cloudinary";
 import MiniNav from "../components/MiniNav";
 import { useLang } from "../context/LanguageContext";
 import { T } from "../i18n";
@@ -201,7 +202,9 @@ export default function CategoryPage() {
     const now = Date.now();
 
     products.forEach((p) => {
-      const price = Number(p.price) || 0;
+      // Use the VAT-applied price for filter min/max so the slider matches
+      // what the customer actually sees on the cards (which use fmtPrice).
+      const price = Number(priceVat(p.price)) || 0;
       if (price < minP) minP = price;
       if (price > maxP) maxP = price;
 
@@ -294,7 +297,8 @@ export default function CategoryPage() {
     const maxN = priceMax === "" ? Infinity : Number(priceMax);
     if (Number.isFinite(minN) || Number.isFinite(maxN)) {
       arr = arr.filter((p) => {
-        const pr = Number(p.price) || 0;
+        // Match by VAT-applied price (same number the customer sees + same as the slider min/max)
+        const pr = Number(priceVat(p.price)) || 0;
         return pr >= minN && pr <= maxN;
       });
     }
@@ -885,12 +889,16 @@ export default function CategoryPage() {
 
                       <Link to={`/product/${p.id}`} onClick={() => trackView(p)} style={{ display: "block", position: "relative" }}>
                         <div className="prod-img-wrap" style={{ position: "relative", overflow: "hidden", height: 200, background: "#F8FAFC" }}>
-                          <img src={mainImg}
+                          <img src={cldOptimize(mainImg, { w: 500, h: 500 })}
                             alt={prodName(p)} className="prod-img-main"
+                            loading={idx < 8 ? "eager" : "lazy"}
+                            decoding="async"
+                            width={250} height={250}
                             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "opacity .3s ease, transform .4s ease" }}
                             onError={e => { if (e.currentTarget.src !== PLACEHOLDER) e.currentTarget.src = PLACEHOLDER; }} />
                           {hoverImg && (
-                            <img src={hoverImg} alt="" className="prod-img-hover"
+                            <img src={cldOptimize(hoverImg, { w: 500, h: 500 })} alt="" className="prod-img-hover"
+                              loading="lazy" decoding="async" width={250} height={250}
                               style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0, transition: "opacity .3s ease" }}
                               onError={e => { e.currentTarget.style.display = "none"; }} />
                           )}
@@ -1026,7 +1034,8 @@ export default function CategoryPage() {
                     onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
                   >
                     <div style={{ height: 120, overflow: "hidden", background: "#F8FAFC" }}>
-                      <img src={p.image || "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect fill='%23F1F5F9' width='100%25' height='100%25'/%3E%3Ctext x='50%25' y='50%25' font-size='60' text-anchor='middle' dy='.3em'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E"} alt={prodName(p)}
+                      <img src={cldOptimize(p.image, { w: 300, h: 300 }) || "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect fill='%23F1F5F9' width='100%25' height='100%25'/%3E%3Ctext x='50%25' y='50%25' font-size='60' text-anchor='middle' dy='.3em'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E"} alt={prodName(p)}
+                        loading="lazy" decoding="async" width={150} height={150}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                         onError={e => { e.currentTarget.onerror = null; e.currentTarget.style.display = "none"; }} />
                     </div>

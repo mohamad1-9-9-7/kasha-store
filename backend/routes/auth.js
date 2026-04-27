@@ -35,24 +35,6 @@ function safeEqual(a, b) {
 // Generic message to avoid user enumeration
 const INVALID_CREDS = "رقم الهاتف أو كلمة المرور غير صحيحة";
 
-// Admin login
-router.post("/admin-login", async (req, res) => {
-  try {
-    const { phone, password } = req.body || {};
-    if (!phone || !password) return res.status(400).json({ error: "البيانات ناقصة" });
-
-    const phoneOk = safeEqual(normalizePhone(phone), normalizePhone(ADMIN_PHONE));
-    const passOk = await bcrypt.compare(String(password), ADMIN_PASSWORD_HASH);
-    if (!phoneOk || !passOk) return res.status(401).json({ error: INVALID_CREDS });
-
-    const token = sign({ id: "admin", role: "admin" });
-    res.json({ token });
-  } catch (e) {
-    console.error("admin-login:", e);
-    res.status(500).json({ error: "خطأ في الخادم" });
-  }
-});
-
 // User register
 router.post("/register", async (req, res) => {
   try {
@@ -88,14 +70,35 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// User login
+// Unified login — handles both admin and regular users from a single endpoint.
+// We branch on the phone matching ADMIN_PHONE; everything else falls through
+// to the DB-backed user lookup. Both branches use the same generic error
+// message so an attacker can't tell whether a phone is admin, registered, or
+// non-existent.
 router.post("/login", async (req, res) => {
   try {
     const { phone, password } = req.body || {};
     if (!phone || !password) return res.status(400).json({ error: "البيانات ناقصة" });
     const normPhone = normalizePhone(phone);
+
+    // Admin path — phone matches the configured admin phone
+    if (safeEqual(normPhone, normalizePhone(ADMIN_PHONE))) {
+      const passOk = await bcrypt.compare(String(password), ADMIN_PASSWORD_HASH);
+      if (!passOk) return res.status(401).json({ error: INVALID_CREDS });
+      const token = sign({ id: "admin", role: "admin" });
+      const user = { phone: normPhone, isAdmin: true };
+      return res.json({ token, user });
+    }
+
+    // Regular user path
     const result = await pool.query("SELECT data FROM users WHERE id = $1", [normPhone]);
-    if (!result.rows.length) return res.status(401).json({ error: INVALID_CREDS });
+    if (!result.rows.length) {
+      // Bcrypt-compare against a throwaway hash to keep response time roughly
+      // constant whether the phone exists or not (mitigates timing-based user
+      // enumeration). We don't care about the result.
+      await bcrypt.compare(String(password), ADMIN_PASSWORD_HASH);
+      return res.status(401).json({ error: INVALID_CREDS });
+    }
 
     const u = result.rows[0].data;
     const valid = await bcrypt.compare(password, u.password);
