@@ -1,6 +1,19 @@
 const router = require("express").Router();
+const rateLimit = require("express-rate-limit");
 const { pool } = require("../db");
 const { requireAdmin } = require("../middleware/auth");
+
+// Tight per-IP limit on coupon code validation. The general limiter is
+// 120/min; that's plenty for a real shopper to apply a code (one or two
+// attempts) but lets a botnet enumerate the entire coupon namespace in
+// minutes. 8/min stops brute-force without inconveniencing legit typos.
+const validateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "محاولات كثيرة، حاول بعد دقيقة" },
+});
 
 // GET all coupons — ADMIN ONLY.
 // Coupons may include private/VIP codes; the storefront validates a code via
@@ -16,7 +29,7 @@ router.get("/", requireAdmin, async (req, res) => {
 });
 
 // POST validate a coupon by code (public) — returns only validity + value
-router.post("/validate", async (req, res) => {
+router.post("/validate", validateLimiter, async (req, res) => {
   try {
     const code = String(req.body?.code || "").toUpperCase();
     if (!code) return res.status(400).json({ error: "رمز الكوبون مطلوب" });

@@ -1,7 +1,40 @@
 const router = require("express").Router();
+const rateLimit = require("express-rate-limit");
 const { pool } = require("../db");
 const { requireAdmin } = require("../middleware/auth");
 const { sendMail, isConfigured } = require("../lib/mailer");
+
+// Tight per-IP limit on the public POST. The general limiter is 120/min;
+// a single browser legitimately pings this endpoint once every few seconds
+// while the user fills the checkout form, so 30/min is plenty for real
+// users while making cart-poisoning enumeration infeasible.
+const publicWriteLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Phone normalization — must match the order-creation flow which deletes by
+// normalized phone (orders.js:429). Without this, '0585446473' and
+// '+971585446473' create two stranded rows for the same customer.
+function normalizePhone(s) {
+  return String(s || "").replace(/\D/g, "");
+}
+
+// Only http(s) URLs are allowed for cart item images. Without this guard a
+// poisoned cart could embed `javascript:` or `data:` URLs that render in
+// the admin's reminder email when reviewed in webmail clients.
+function safeImageUrl(s) {
+  const v = String(s || "").trim();
+  if (!v) return "";
+  if (v.length > 500) return "";
+  return /^https?:\/\//i.test(v) ? v : "";
+}
+
+function clampString(s, max) {
+  return String(s || "").slice(0, max);
+}
 
 function reminderHTML(cart, storeName = "كشخة", storeUrl = "") {
   const items = (cart.items || [])
@@ -63,32 +96,49 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
-// Upsert abandoned cart (public — anyone can ping)
-// id = phone OR browser fingerprint OR random client key
-router.post("/", async (req, res) => {
+// Upsert abandoned cart (public — pinged by the checkout form as the user types).
+// Validation is strict: anyone can call this without auth, so cart poisoning
+// (writing garbage or phishing image URLs to another customer's row) and PII
+// enumeration (probing whether a phone exists) are the threats we mitigate.
+const MAX_ITEMS = 50;
+const MAX_NAME_LEN = 200;
+router.post("/", publicWriteLimiter, async (req, res) => {
   try {
     const { id, customer, items, subtotal } = req.body || {};
-    const key = String(id || "").trim();
-    if (!key || !Array.isArray(items) || items.length === 0) {
+    const phone = normalizePhone(id);
+    // Phone-only keys, length 7–15 digits (E.164 max). Rejecting non-phone keys
+    // also blocks abuse where an attacker writes random fingerprints to bloat the table.
+    if (!phone || phone.length < 7 || phone.length > 15) {
+      return res.status(400).json({ error: "رقم غير صالح" });
+    }
+    if (!Array.isArray(items) || items.length === 0 || items.length > MAX_ITEMS) {
       return res.status(400).json({ error: "بيانات ناقصة" });
     }
+    const cleanItems = items.map((it) => ({
+      id: clampString(it?.id, 64),
+      name: clampString(it?.name, MAX_NAME_LEN),
+      price: Math.max(0, Math.min(1e6, Number(it?.price) || 0)),
+      qty: Math.max(1, Math.min(999, Number(it?.qty) || 1)),
+      image: safeImageUrl(it?.image),
+    }));
+    const c = customer || {};
     const data = {
-      id: key,
-      customer: customer || {},
-      items: items.map((it) => ({
-        id: it.id,
-        name: it.name,
-        price: Number(it.price) || 0,
-        qty: Number(it.qty) || 1,
-        image: it.image || "",
-      })),
-      subtotal: Number(subtotal) || 0,
+      id: phone,
+      customer: {
+        name: clampString(c.name, 100),
+        phone,
+        email: clampString(c.email, 200),
+        city: clampString(c.city, 50),
+        address: clampString(c.address, 300),
+      },
+      items: cleanItems,
+      subtotal: Math.max(0, Math.min(1e7, Number(subtotal) || 0)),
       updatedAt: new Date().toISOString(),
     };
     await pool.query(
       `INSERT INTO abandoned_carts (id, data, updated_at) VALUES ($1, $2, NOW())
        ON CONFLICT (id) DO UPDATE SET data = $2, updated_at = NOW()`,
-      [key, data]
+      [phone, data]
     );
     res.json({ ok: true });
   } catch (e) {
@@ -97,16 +147,9 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Remove when order completes (public — called by client after success)
-router.delete("/:id", async (req, res) => {
-  try {
-    await pool.query("DELETE FROM abandoned_carts WHERE id = $1", [req.params.id]);
-    res.json({ ok: true });
-  } catch (e) {
-    console.error("DELETE /abandoned-carts:", e);
-    res.status(500).json({ error: "خطأ في الخادم" });
-  }
-});
+// Note: there's no public DELETE here. The order-creation flow already deletes
+// the cart by normalized phone (orders.js:429), so the client never needs to
+// call delete directly. Admin deletion is exposed under /admin/:id below.
 
 // Admin: list all
 router.get("/", requireAdmin, async (req, res) => {

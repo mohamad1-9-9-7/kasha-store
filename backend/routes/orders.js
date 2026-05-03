@@ -462,11 +462,16 @@ router.post("/", createOrderLimiter, async (req, res) => {
   }
 });
 
-// Helper: find order row by either id column or data->>'id' (handles legacy rows)
-async function findOrderRow(id, client = pool) {
-  let { rows } = await client.query("SELECT id, data FROM orders WHERE id = $1", [id]);
+// Helper: find order row by either id column or data->>'id' (handles legacy rows).
+// Pass `lock: true` from inside a transaction (PUT/DELETE) so concurrent
+// cancellations serialize on this row — without the lock, two simultaneous
+// cancel requests both see status=NEW, both decrement coupon.uses by 1, and
+// both refund the user's points, double-crediting.
+async function findOrderRow(id, client = pool, { lock = false } = {}) {
+  const suffix = lock ? " FOR UPDATE" : "";
+  let { rows } = await client.query(`SELECT id, data FROM orders WHERE id = $1${suffix}`, [id]);
   if (rows.length) return rows[0];
-  const r = await client.query("SELECT id, data FROM orders WHERE data->>'id' = $1", [id]);
+  const r = await client.query(`SELECT id, data FROM orders WHERE data->>'id' = $1${suffix}`, [id]);
   return r.rows[0] || null;
 }
 
@@ -625,7 +630,7 @@ router.put("/:id", requireAdmin, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const row = await findOrderRow(req.params.id, client);
+    const row = await findOrderRow(req.params.id, client, { lock: true });
     if (!row) { await client.query("ROLLBACK"); return res.status(404).json({ error: "الطلب غير موجود" }); }
 
     const patch = {};
@@ -665,7 +670,7 @@ router.delete("/:id", requireAdmin, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const row = await findOrderRow(req.params.id, client);
+    const row = await findOrderRow(req.params.id, client, { lock: true });
     if (!row) { await client.query("ROLLBACK"); return res.status(404).json({ error: "الطلب غير موجود" }); }
 
     // إذا الطلب مش ملغي → رجّع المخزون + الكوبون + النقاط قبل الحذف

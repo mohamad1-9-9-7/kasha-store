@@ -23,6 +23,31 @@ if (!ADMIN_PHONE || !ADMIN_PASSWORD_HASH) {
 
 const sign = (payload) => jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 
+// Admin password hash lives in settings.main.adminPasswordHash once the admin
+// changes it through the UI. The env value is the bootstrap that lets the very
+// first login work; after a UI change the DB value wins. This way admins can
+// rotate their password without redeploying / editing .env on the server.
+async function getAdminHash() {
+  try {
+    const { rows } = await pool.query("SELECT data FROM settings WHERE id = 'main'");
+    const stored = rows[0]?.data?.adminPasswordHash;
+    if (stored) return stored;
+  } catch (e) {
+    console.error("getAdminHash:", e.message);
+  }
+  return ADMIN_PASSWORD_HASH;
+}
+
+async function setAdminHash(newHash) {
+  const { rows } = await pool.query("SELECT data FROM settings WHERE id = 'main'");
+  const merged = { ...(rows[0]?.data || {}), adminPasswordHash: newHash };
+  await pool.query(
+    `INSERT INTO settings (id, data) VALUES ('main', $1)
+     ON CONFLICT (id) DO UPDATE SET data = $1`,
+    [merged]
+  );
+}
+
 // Constant-time string comparison to mitigate timing attacks
 function safeEqual(a, b) {
   if (typeof a !== "string" || typeof b !== "string") return false;
@@ -83,7 +108,8 @@ router.post("/login", async (req, res) => {
 
     // Admin path — phone matches the configured admin phone
     if (safeEqual(normPhone, normalizePhone(ADMIN_PHONE))) {
-      const passOk = await bcrypt.compare(String(password), ADMIN_PASSWORD_HASH);
+      const adminHash = await getAdminHash();
+      const passOk = await bcrypt.compare(String(password), adminHash);
       if (!passOk) return res.status(401).json({ error: INVALID_CREDS });
       const token = sign({ id: "admin", role: "admin" });
       const user = { phone: normPhone, isAdmin: true };
@@ -144,11 +170,27 @@ router.put("/profile", requireAuth, async (req, res) => {
 });
 
 // PUT /api/auth/change-password
+// Handles both admins (hash stored in settings.main.adminPasswordHash) and
+// regular users (hash stored in users.data.password). Branching on JWT role
+// keeps a single client-facing endpoint.
 router.put("/change-password", requireAuth, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body || {};
     if (!currentPassword || !newPassword) return res.status(400).json({ error: "البيانات ناقصة" });
-    if (String(newPassword).length < 6) return res.status(400).json({ error: "كلمة المرور الجديدة قصيرة جداً" });
+    if (String(newPassword).length < 8) return res.status(400).json({ error: "كلمة المرور الجديدة يجب أن تكون 8 خانات على الأقل" });
+
+    if (req.user?.role === "admin") {
+      const currentHash = await getAdminHash();
+      const valid = await bcrypt.compare(String(currentPassword), currentHash);
+      if (!valid) return res.status(401).json({ error: "كلمة المرور الحالية خاطئة" });
+      // Cost 12 — modern recommendation. Only the admin path uses 12 because
+      // user registration/login still uses 10 and we don't want to invalidate
+      // existing user hashes here.
+      const hashed = await bcrypt.hash(String(newPassword), 12);
+      await setAdminHash(hashed);
+      return res.json({ ok: true });
+    }
+
     const { rows } = await pool.query("SELECT data FROM users WHERE id = $1", [req.user.id]);
     if (!rows.length) return res.status(404).json({ error: "المستخدم غير موجود" });
     const valid = await bcrypt.compare(currentPassword, rows[0].data.password);

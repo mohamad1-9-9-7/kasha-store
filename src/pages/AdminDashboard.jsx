@@ -93,7 +93,7 @@ export default function AdminDashboard() {
 
   /* حالات طيّ الأقسام */
   const [showLowStock, setShowLowStock] = useState(false);
-  const [openAdv, setOpenAdv] = useState({ loyalty: false, zones: false, vat: false, pixels: false, notify: false, danger: false });
+  const [openAdv, setOpenAdv] = useState({ loyalty: false, zones: false, vat: false, pixels: false, notify: false, security: false, danger: false });
   const toggleAdv = (k) => setOpenAdv(s => ({ ...s, [k]: !s[k] }));
 
   /* مودال تأكيد الحذف الخطر */
@@ -114,6 +114,7 @@ export default function AdminDashboard() {
     { id: "sec-pixels", icon: "📊", label: "بكسلات التتبع", keywords: "facebook pixel google analytics tiktok بكسل تتبع" },
     { id: "sec-notify", icon: "📬", label: "إشعارات الطلبات", keywords: "webhook whatsapp telegram notify إشعار طلب" },
     { id: "sec-backup", icon: "💾", label: "النسخ الاحتياطي", keywords: "backup نسخ احتياطي تصدير استرجاع" },
+    { id: "sec-security", icon: "🔐", label: "كلمة سر الأدمن", keywords: "كلمة سر مرور باسوورد password admin أدمن أمان security" },
     { id: "sec-danger", icon: "🚨", label: "منطقة الخطر", keywords: "حذف كل خطر danger" },
   ];
   const visibleSettingsSections = useMemo(() => {
@@ -1449,6 +1450,14 @@ export default function AdminDashboard() {
               <BackupCard />
             </div>
 
+            {/* كلمة سر الأدمن */}
+            <div id="sec-security" style={{ display: visibleSettingsSections.has("sec-security") ? "block" : "none" }}>
+              <AdvCard title="كلمة سر الأدمن" icon="🔐" subtitle="غيّر كلمة السر — رح تتسجّل خروج بعد التغيير"
+                open={openAdv.security} onToggle={() => toggleAdv("security")}>
+                <AdminPasswordCard />
+              </AdvCard>
+            </div>
+
             {/* خطر */}
             <div id="sec-danger" style={{ display: visibleSettingsSections.has("sec-danger") ? "block" : "none" }}>
             <AdvCard title="منطقة الخطر" icon="🚨" subtitle="حذف جماعي — إجراءات لا يمكن التراجع عنها"
@@ -2107,6 +2116,84 @@ function BackupCard() {
       <div style={{ marginTop: 16, padding: "12px 14px", background: "#FFFBEB", borderRadius: 10, border: "1.5px solid #FDE68A", fontSize: 12, color: "#92400E", lineHeight: 1.7 }}>
         💡 <b>نصيحة:</b> احفظ الملف على جوجل درايف أو خارجياً. كلمات سر المستخدمين محذوفة من الملف للأمان.
       </div>
+    </div>
+  );
+}
+
+/* ════════════════════ تغيير كلمة سر الأدمن ════════════════════ */
+function AdminPasswordCard() {
+  const [form, setForm] = useState({ current: "", next: "", confirm: "" });
+  const [busy, setBusy] = useState(false);
+  const [show, setShow] = useState(false);
+
+  const submit = async () => {
+    if (!form.current || !form.next) return alert("⚠️ عبّي الحقول");
+    if (form.next.length < 8) return alert("⚠️ الكلمة الجديدة لازم 8 خانات على الأقل");
+    if (form.next !== form.confirm) return alert("⚠️ التأكيد مش مطابق");
+    if (form.current === form.next) return alert("⚠️ الكلمة الجديدة لازم تكون مختلفة عن القديمة");
+    if (busy) return;
+    setBusy(true);
+    try {
+      await apiFetch("/api/auth/change-password", {
+        method: "PUT",
+        body: { currentPassword: form.current, newPassword: form.next },
+      });
+      alert("✅ تم تغيير كلمة السر — رح تتسجّل خروج. سجّل دخول بالكلمة الجديدة.");
+      // Force re-login with the new password — old JWT remains valid until
+      // 7-day expiry but clearing the local session is what UX expects.
+      localStorage.removeItem("token");
+      localStorage.removeItem("isAdmin");
+      window.location.href = "/user-login";
+    } catch (e) {
+      alert("❌ " + (e.message || "فشل التغيير"));
+      setBusy(false);
+    }
+  };
+
+  const field = (key, placeholder) => (
+    <input
+      type={show ? "text" : "password"}
+      value={form[key]}
+      onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+      placeholder={placeholder}
+      autoComplete="new-password"
+      style={inputBase}
+      onFocus={focusIn}
+      onBlur={focusOut}
+    />
+  );
+
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      <div>
+        <label style={lbl}>كلمة السر الحالية</label>
+        {field("current", "أدخل كلمة السر الحالية")}
+      </div>
+      <div>
+        <label style={lbl}>كلمة السر الجديدة (8 خانات على الأقل)</label>
+        {field("next", "كلمة سر جديدة")}
+      </div>
+      <div>
+        <label style={lbl}>تأكيد كلمة السر الجديدة</label>
+        {field("confirm", "أعد كتابة كلمة السر الجديدة")}
+      </div>
+
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569", cursor: "pointer" }}>
+        <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} style={{ accentColor: "#6366F1" }} />
+        إظهار كلمات السر
+      </label>
+
+      <div style={{ background: "#FFFBEB", border: "1.5px solid #FDE68A", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "#92400E", lineHeight: 1.7 }}>
+        ⚠️ بعد التغيير: الكلمة القديمة بـ <code>.env</code> رح تبطل تشتغل، والكلمة الجديدة رح تنحفظ بقاعدة البيانات.
+      </div>
+
+      <button
+        onClick={submit}
+        disabled={busy}
+        style={{ ...btnPrimary, padding: "12px 24px", opacity: busy ? 0.6 : 1, cursor: busy ? "wait" : "pointer" }}
+      >
+        {busy ? "⏳ جاري التغيير..." : "🔐 غيّر كلمة السر"}
+      </button>
     </div>
   );
 }

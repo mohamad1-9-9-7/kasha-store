@@ -1,6 +1,6 @@
 const router = require("express").Router();
 const { pool } = require("../db");
-const { requireAuth, requireAdmin } = require("../middleware/auth");
+const { requireAdmin } = require("../middleware/auth");
 
 // GET all users (admin)
 router.get("/", requireAdmin, async (req, res) => {
@@ -17,20 +17,11 @@ router.get("/", requireAdmin, async (req, res) => {
   }
 });
 
-// GET user points — user can only fetch own, admin can fetch any
-router.get("/:id/points", requireAuth, async (req, res) => {
-  try {
-    if (req.user?.role !== "admin" && req.user?.id !== req.params.id) {
-      return res.status(403).json({ error: "ممنوع" });
-    }
-    const { rows } = await pool.query("SELECT data FROM users WHERE id = $1", [req.params.id]);
-    if (!rows.length) return res.json({ points: 0 });
-    res.json({ points: rows[0].data.points || 0 });
-  } catch (e) {
-    console.error("GET /users/:id/points:", e);
-    res.status(500).json({ error: "خطأ في الخادم" });
-  }
-});
+// Note: GET /:id/points was removed. The frontend reads points from the
+// localStorage user object (set on login + after each order from the server's
+// authoritative response), so the endpoint had no real callers — but it did
+// let an authenticated user probe phone-number existence by distinguishing
+// `{points: 0}` (404 silently coerced) from a real value.
 
 // PUT user points — ADMIN ONLY.
 // Regular users CANNOT set their own points; loyalty points are managed

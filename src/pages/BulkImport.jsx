@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import * as XLSX from "xlsx";
+import readXlsxFile from "read-excel-file";
 import { shadow, inputBase, btnPrimary } from "../Theme";
 import { csvToObjects, objectsToCSV } from "../utils/csvParser";
 import { matrixToObjects, normalizeObjects } from "../utils/productImportMap";
@@ -78,13 +78,15 @@ export default function BulkImport() {
     setFile(f);
     setResult(null);
     try {
-      const isExcel = /\.(xlsx|xls|xlsm)$/i.test(f.name);
+      const isExcel = /\.xlsx$/i.test(f.name);
       let data = [];
       if (isExcel) {
-        const buf = await f.arrayBuffer();
-        const wb = XLSX.read(buf, { type: "array" });
-        const sheet = wb.Sheets[wb.SheetNames[0]];
-        const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true, blankrows: false });
+        // read-excel-file returns a 2D array of cell values, with empty cells
+        // as null. matrixToObjects expects empty cells to be "" (the old XLSX
+        // sheet_to_json defval), so coerce here.
+        const matrix = (await readXlsxFile(f)).map((row) =>
+          row.map((cell) => (cell == null ? "" : cell))
+        );
         data = matrixToObjects(matrix);
       } else {
         const text = await f.text();
@@ -196,6 +198,8 @@ export default function BulkImport() {
           <p style={{ fontSize: 13, color: "#64748B", marginBottom: 14, lineHeight: 1.8 }}>
             ارفع ملف <b>CSV</b> أو <b>Excel (.xlsx)</b>. الحد الأدنى: <b>اسم المنتج</b> و<b>السعر</b>.
             <br />
+            <span style={{ fontSize: 11, color: "#94A3B8" }}>ملاحظة: صيغة <code>.xls</code> القديمة ما عاد مدعومة — حوّل ملفك لـ <code>.xlsx</code> من Excel.</span>
+            <br />
             يدعم تلقائياً ملفات الموردين (أعمدة مثل <code style={{ background: "#F1F5F9", padding: "1px 5px", borderRadius: 4, fontSize: 12 }}>Product Name</code>, <code style={{ background: "#F1F5F9", padding: "1px 5px", borderRadius: 4, fontSize: 12 }}>Vendor Sku</code>, <code style={{ background: "#F1F5F9", padding: "1px 5px", borderRadius: 4, fontSize: 12 }}>Price Without Tax</code>).
           </p>
 
@@ -206,7 +210,7 @@ export default function BulkImport() {
 
             <label style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#fff", border: "1.5px dashed #6366F1", borderRadius: 12, padding: "10px 18px", cursor: "pointer", fontWeight: 800, fontSize: 14, color: "#6366F1" }}>
               📁 اختر ملف (CSV / Excel)
-              <input type="file" accept=".csv,.xlsx,.xls,.xlsm,text/csv" onChange={handleFile} style={{ display: "none" }} />
+              <input type="file" accept=".csv,.xlsx,text/csv" onChange={handleFile} style={{ display: "none" }} />
             </label>
             {file && <span style={{ fontSize: 13, color: "#64748B" }}>{file.name} — {rows.length} صف</span>}
           </div>

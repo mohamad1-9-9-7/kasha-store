@@ -21,7 +21,7 @@ export default defineConfig({
           if (id.includes("react-router")) return "router";
           if (id.includes("react-dom") || id.includes("/react/")) return "react";
           if (id.includes("html2canvas") || id.includes("jspdf")) return "pdf";
-          if (id.includes("xlsx")) return "xlsx";
+          if (id.includes("read-excel-file")) return "xlsx";
           return "vendor";
         },
       },

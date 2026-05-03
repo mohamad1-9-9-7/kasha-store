@@ -102,7 +102,14 @@
       "Bash(wait)",
       "Bash(node -c routes/auth.js)",
       "Bash(node -e \"require\\('./routes/auth.js'\\); console.log\\('loads ok'\\);\")",
-      "Bash(node -e \"console.log\\(require\\('bcryptjs'\\).hashSync\\('admin-pass', 10\\)\\)\")"
+      "Bash(node -e \"console.log\\(require\\('bcryptjs'\\).hashSync\\('admin-pass', 10\\)\\)\")",
+      "Bash(npm outdated *)",
+      "Bash(node -c backend/routes/auth.js)",
+      "PowerShell($conn = Get-NetTCPConnection -LocalPort 3001 -ErrorAction SilentlyContinue; if \\($conn\\) { Stop-Process -Id $conn.OwningProcess -Force; Write-Output \"Killed process on port 3001\" } else { Write-Output \"Port 3001 is free\" })",
+      "Bash(node -c server.js)",
+      "Bash(node -c routes/orders.js)",
+      "Bash(PORT=3099 timeout 4 node server.js)",
+      "Bash(PORT=3099 timeout 12 node server.js)"
     ]
   }
 }
