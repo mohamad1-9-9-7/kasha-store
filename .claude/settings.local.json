@@ -109,7 +109,10 @@
       "Bash(node -c server.js)",
       "Bash(node -c routes/orders.js)",
       "Bash(PORT=3099 timeout 4 node server.js)",
-      "Bash(PORT=3099 timeout 12 node server.js)"
+      "Bash(PORT=3099 timeout 12 node server.js)",
+      "Bash(curl -s -i https://kashkha-backend.onrender.com/healthz)",
+      "Bash(curl -sS -i --max-time 30 https://kashkha-backend.onrender.com/)",
+      "Bash(curl -sS -k -i --max-time 60 https://kashkha-backend.onrender.com/healthz)"
     ]
   }
 }
