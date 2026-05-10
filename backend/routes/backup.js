@@ -34,6 +34,20 @@ router.get("/", requireAdmin, async (req, res) => {
       });
     }
 
+    // Redact the admin password hash from the settings row. Backups land on
+    // local disks, email, and cloud storage — exporting a recoverable hash
+    // alongside the admin phone gives an attacker who steals the file an
+    // offline cracking target tied to a known account.
+    if (Array.isArray(out.data.settings)) {
+      out.data.settings = out.data.settings.map((s) => {
+        const data = s.data || {};
+        if (data.adminPasswordHash) {
+          return { ...s, data: { ...data, adminPasswordHash: "***REDACTED***" } };
+        }
+        return s;
+      });
+    }
+
     const filename = `kashkha-backup-${new Date().toISOString().slice(0, 10)}.json`;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);

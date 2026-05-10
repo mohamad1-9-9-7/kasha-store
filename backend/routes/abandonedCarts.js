@@ -3,6 +3,11 @@ const rateLimit = require("express-rate-limit");
 const { pool } = require("../db");
 const { requireAdmin } = require("../middleware/auth");
 const { sendMail, isConfigured } = require("../lib/mailer");
+// Use the SAME normalizer as orders.js so a cart written here is deleted by
+// the order flow on submit. Previously this file had its own version that
+// only stripped non-digits, so '+971585446473' became '971585446473' here
+// while orders.js stored '0585446473' — orphan abandoned-cart row forever.
+const { normalizePhone: normalizePhoneCanonical } = require("../lib/phone");
 
 // Tight per-IP limit on the public POST. The general limiter is 120/min;
 // a single browser legitimately pings this endpoint once every few seconds
@@ -15,11 +20,8 @@ const publicWriteLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Phone normalization — must match the order-creation flow which deletes by
-// normalized phone (orders.js:429). Without this, '0585446473' and
-// '+971585446473' create two stranded rows for the same customer.
 function normalizePhone(s) {
-  return String(s || "").replace(/\D/g, "");
+  return normalizePhoneCanonical(s);
 }
 
 // Only http(s) URLs are allowed for cart item images. Without this guard a

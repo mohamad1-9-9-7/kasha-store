@@ -26,10 +26,11 @@ const NotFound          = lazy(() => import("./pages/NotFound"));
 const AdminDashboard    = lazy(() => import("./pages/AdminDashboard"));
 const AddProduct        = lazy(() => import("./pages/AddProduct"));
 const UsersList         = lazy(() => import("./pages/UsersList"));
-const ManageCategories  = lazy(() => import("./pages/ManageCategories"));
 const AdminOrders       = lazy(() => import("./pages/AdminOrders"));
-const CouponsPage       = lazy(() => import("./pages/CouponsPage"));
 const BulkImport        = lazy(() => import("./pages/BulkImport"));
+// Categories live as `?tab=cats` inside AdminDashboard, coupons as a section
+// inside `?tab=settings` (see CouponsManager). The standalone routes have been
+// removed to eliminate two-implementations-of-the-same-thing drift.
 
 // Safe localStorage read. If the JSON is corrupted we DROP the bad value (so
 // the next render shows the logged-out state) instead of returning null and
@@ -65,10 +66,16 @@ function App() {
   useLocation(); // forces re-render on route change
 
   const user = safeGetUser();
-  // Admin gate: flag + token must both exist. Server still re-validates via JWT.
+  // Admin gate: every signal must agree — `isAdmin` flag, valid token, and
+  // the cached user object's `isAdmin: true`. Earlier we accepted just flag +
+  // token, which let a regular user with a stale `isAdmin=true` flag from a
+  // shared browser see the admin UI shell (server still blocked their
+  // requests, but the experience was confusing). Server JWT remains the final
+  // authority for any actual data access.
   const isAdmin =
     localStorage.getItem("isAdmin") === "true" &&
-    !!localStorage.getItem("token");
+    !!localStorage.getItem("token") &&
+    user?.isAdmin === true;
 
   if (user === null && localStorage.getItem("user")) {
     return <div style={{ textAlign: "center", padding: "50px" }}>⏳ جاري تحميل الحساب...</div>;
@@ -90,13 +97,14 @@ function App() {
           <Route path="/product/:id" element={<ProductDetails />} />
           <Route path="/cart" element={<CartPage />} />
 
-          <Route path="/admin-dashboard"  element={isAdmin ? <AdminDashboard />   : <Navigate to="/user-login" replace />} />
-          <Route path="/add-product"      element={isAdmin ? <AddProduct />       : <Navigate to="/user-login" replace />} />
-          <Route path="/customers"        element={isAdmin ? <UsersList />        : <Navigate to="/user-login" replace />} />
-          <Route path="/manage-categories" element={isAdmin ? <ManageCategories /> : <Navigate to="/user-login" replace />} />
-          <Route path="/admin-orders"     element={isAdmin ? <AdminOrders />      : <Navigate to="/user-login" replace />} />
-          <Route path="/coupons"          element={isAdmin ? <CouponsPage />      : <Navigate to="/user-login" replace />} />
-          <Route path="/bulk-import"      element={isAdmin ? <BulkImport />       : <Navigate to="/user-login" replace />} />
+          <Route path="/admin-dashboard"  element={isAdmin ? <AdminDashboard /> : <Navigate to="/user-login" replace />} />
+          <Route path="/add-product"      element={isAdmin ? <AddProduct />     : <Navigate to="/user-login" replace />} />
+          <Route path="/customers"        element={isAdmin ? <UsersList />      : <Navigate to="/user-login" replace />} />
+          <Route path="/admin-orders"     element={isAdmin ? <AdminOrders />    : <Navigate to="/user-login" replace />} />
+          <Route path="/bulk-import"      element={isAdmin ? <BulkImport />     : <Navigate to="/user-login" replace />} />
+          {/* Legacy redirects — old bookmarks land in the consolidated places. */}
+          <Route path="/manage-categories" element={<Navigate to="/admin-dashboard?tab=cats" replace />} />
+          <Route path="/coupons"           element={<Navigate to="/admin-dashboard?tab=settings" replace />} />
 
           <Route path="/my-orders" element={user ? <MyOrders />     : <Navigate to="/user-login" replace />} />
           <Route path="/profile"   element={user ? <ProfilePage />  : <Navigate to="/user-login" replace />} />

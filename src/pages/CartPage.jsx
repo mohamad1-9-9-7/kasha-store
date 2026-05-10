@@ -28,7 +28,12 @@ const EMIRATES = [
 ];
 
 /* Discount preview calculation. The server is the source of truth for the
-   final amount (recomputed on order create); this is just a UI hint. */
+   final amount (recomputed on order create); this is just a UI hint.
+   Use cent-rounding (round2) to match backend/routes/orders.js so the cart
+   total the user sees is identical to the order receipt. Whole-AED rounding
+   used to drift by up to 0.5 AED on percent coupons. */
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
 function previewCouponDiscount(coupon, subtotalRaw) {
   if (!coupon) return 0;
   const subtotal = Number(subtotalRaw) || 0;
@@ -36,9 +41,9 @@ function previewCouponDiscount(coupon, subtotalRaw) {
   const minOrder = Number(coupon.minOrder) || 0;
   if (subtotal < minOrder) return 0;
   if (coupon.type === "percent" || coupon.type === "percentage") {
-    return Math.round((subtotal * value) / 100);
+    return Math.min(round2((subtotal * value) / 100), subtotal);
   }
-  return Math.min(value, subtotal);
+  return Math.min(round2(value), subtotal);
 }
 
 const S = {
@@ -53,7 +58,7 @@ export default function CartPage() {
   const cartCtx   = useContext(CartContext);
   const { lang }  = useLang();
   const { toggle: wishlistToggle, isWishlisted } = useWishlist();
-  const { products: allProducts } = useProducts();
+  const { products: allProducts, refresh: refreshProducts } = useProducts();
   const { settings: storeSettings } = useSettings();
 
   /* ── إعدادات من لوحة التحكم ── */
@@ -87,7 +92,6 @@ export default function CartPage() {
   const [loading, setLoading] = useState(false);
   const [couponInput, setCouponInput]     = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
-  const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponError, setCouponError]     = useState("");
   const [redeemPoints, setRedeemPoints]   = useState(false);
   const [locationData, setLocationData]   = useState(null); // { lat, lng, address }
@@ -122,6 +126,14 @@ export default function CartPage() {
 
   const subtotal     = useMemo(() => (items || []).reduce((s, it) => s + (Number(it.price) || 0) * (Number(it.qty) || 1), 0), [items]);
 
+  // Recompute coupon discount on every subtotal change so changing qty / removing
+  // items / hitting minOrder updates the displayed savings + total. Storing it
+  // in state used to leave a stale value frozen at apply-time.
+  const couponDiscount = useMemo(
+    () => previewCouponDiscount(appliedCoupon, subtotal),
+    [appliedCoupon, subtotal]
+  );
+
   // Enriched cart items — pull latest name/nameEn/image/weight from products list
   // so language toggle works for items added before the nameEn field was stored.
   const enrichedItems = useMemo(() => (items || []).map((it) => {
@@ -135,20 +147,24 @@ export default function CartPage() {
     };
   }), [items, allProducts]);
 
-  // Zone-based shipping (falls back to flat shipping fee)
+  // Zone-based shipping. The server uses subtotalAfterDiscounts (subtotal -
+  // coupon - bundle - points) when checking free-ship thresholds — match that
+  // here exactly. Otherwise the cart UI promises "Free shipping" but the
+  // server-computed grandTotal in the receipt actually charges shipping.
   const zones = useMemo(() => parseZones(storeSettings.shippingZones), [storeSettings.shippingZones]);
   const totalWeight = useMemo(() => cartWeight(enrichedItems), [enrichedItems]);
+  const subtotalAfterDiscounts = Math.max(0, subtotal - couponDiscount - pointsDiscount);
   const shipCalc = useMemo(() => computeShipping({
     zones,
     emirate: form.city,
-    subtotal,
+    subtotal: subtotalAfterDiscounts,
     weightKg: totalWeight,
     fallbackFee: SHIPPING_FEE,
     fallbackFreeOver: FREE_SHIP_THRESHOLD,
-  }), [zones, form.city, subtotal, totalWeight, SHIPPING_FEE, FREE_SHIP_THRESHOLD]);
+  }), [zones, form.city, subtotalAfterDiscounts, totalWeight, SHIPPING_FEE, FREE_SHIP_THRESHOLD]);
   const dynamicShippingFee = shipCalc.fee;
 
-  const afterDisc    = Math.max(0, subtotal - couponDiscount - pointsDiscount);
+  const afterDisc    = subtotalAfterDiscounts;
   // حساب الضريبة
   const vatAmount    = VAT_ENABLED
     ? (VAT_INCLUDED
@@ -157,9 +173,12 @@ export default function CartPage() {
     : 0;
   const grandTotal   = VAT_ENABLED && !VAT_INCLUDED ? afterDisc + vatAmount : afterDisc;
   const zoneFreeOver = Number(shipCalc.zone?.freeOver) || FREE_SHIP_THRESHOLD;
-  const toFreeShip   = Math.max(0, zoneFreeOver - subtotal);
-  const freeShipPct  = Math.min(100, Math.round((subtotal / zoneFreeOver) * 100));
-  const isFreeShip   = shipCalc.freeShip || (subtotal >= zoneFreeOver);
+  // Free-ship progress is shown to the customer to nudge them to add items;
+  // measure against the post-discount total (same as server) so a coupon
+  // doesn't visually push them above the bar while server still charges shipping.
+  const toFreeShip   = Math.max(0, zoneFreeOver - subtotalAfterDiscounts);
+  const freeShipPct  = Math.min(100, Math.round((subtotalAfterDiscounts / zoneFreeOver) * 100));
+  const isFreeShip   = shipCalc.freeShip || (subtotalAfterDiscounts >= zoneFreeOver);
 
   /* ── Save for Later ── */
   const saveForLater = (it) => {
@@ -177,23 +196,23 @@ export default function CartPage() {
       const c = await validateCouponCode(code);
       const subtotalNum = Number(subtotal) || 0;
       const minOrder = Number(c.minOrder) || 0;
-      const discount = previewCouponDiscount(c, subtotalNum);
       if (subtotalNum < minOrder) {
         setCouponError(isAr ? `الحد الأدنى للطلب ${fmt(minOrder)}` : `Minimum order ${fmt(minOrder)}`);
-        setAppliedCoupon(null); setCouponDiscount(0);
+        setAppliedCoupon(null);
         return;
       }
       setCouponError("");
       setAppliedCoupon(c);
-      setCouponDiscount(discount);
+      // discount is now derived via useMemo from `appliedCoupon` + `subtotal`,
+      // so we don't store it separately — it auto-updates if cart contents change.
+      const discount = previewCouponDiscount(c, subtotalNum);
       toast(`🎉 ${isAr ? "تم تطبيق الكوبون! وفّرت" : "Coupon applied! You saved"} ${fmt(discount)}`, "success");
     } catch (e) {
       setCouponError(e?.message || (isAr ? "رمز الكوبون غير صحيح" : "Invalid coupon code"));
       setAppliedCoupon(null);
-      setCouponDiscount(0);
     }
   };
-  const removeCoupon = () => { setAppliedCoupon(null); setCouponDiscount(0); setCouponInput(""); setCouponError(""); };
+  const removeCoupon = () => { setAppliedCoupon(null); setCouponInput(""); setCouponError(""); };
 
   /* ── تحديد الموقع ── */
   const pickLocation = () => {
@@ -327,6 +346,11 @@ export default function CartPage() {
 
       clearCart();
 
+      // Server already decremented stock inside the order transaction. Refetch
+      // products so the customer sees the new stock counts on subsequent
+      // category/product pages (without a hard reload). Fire-and-forget.
+      refreshProducts?.().catch(() => {});
+
       // Analytics: Purchase event — use server's grandTotal so it matches what the user paid
       try {
         trackEvent("Purchase", {
@@ -345,7 +369,14 @@ export default function CartPage() {
         pendingInvoice: createdOrder || null,
         earnedMsg: `✅ ${isAr ? `تم إرسال طلبك! ربحت ${earned} نقطة` : `Order sent! You earned ${earned} points`}`,
       });
-    } catch (e) { console.error(e); toast(isAr ? "خطأ في الإرسال، حاول مرة أخرى" : "Submission error, try again", "error"); }
+    } catch (e) {
+      console.error(e);
+      // Surface the backend's specific error (stock, coupon, min-order, phone,
+      // email, etc.) instead of a generic "submission error" — the customer
+      // needs to know exactly what to fix or the order is abandoned.
+      const fallback = isAr ? "خطأ في الإرسال، حاول مرة أخرى" : "Submission error, try again";
+      toast(e?.message || fallback, "error");
+    }
     finally { setLoading(false); }
   };
 

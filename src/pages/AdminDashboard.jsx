@@ -1,12 +1,19 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { shadow, r, inputBase, btnPrimary, focusIn, focusOut, safeParse, slugify, fmt } from "../Theme";
-import AdminNotificationBell from "../components/AdminNotificationBell";
+import AdminLayout, { Card, Stat, SectionHeader, ADMIN } from "../components/AdminLayout";
+import {
+  IconHome, IconBox, IconTag, IconFolder, IconStar, IconCart, IconSettings,
+  IconUsers, IconTicket, IconUpload, IconPlus, IconWallet, IconChart, IconTruck,
+  IconAlert, IconClock, IconCheck, IconCheckCircle, IconImage, IconLayers,
+  IconReceipt, IconSparkles, IconArrowRight, IconLock, IconDownload, IconShield,
+} from "../components/Icons";
 import { useCategories, addCategory, updateCategory, deleteCategory } from "../hooks/useCategories";
 import { useProducts, updateProduct, replaceProduct, deleteProduct } from "../hooks/useProducts";
 import { useSettings, saveSettings } from "../hooks/useSettings";
 import { fetchAllRatings, moderateRating, adminDeleteRating } from "../hooks/useRatings";
-import { apiFetch } from "../api";
+import { useCoupons, saveCoupon, updateCoupon, deleteCoupon } from "../hooks/useCoupons";
+import { apiFetch, clearAuth } from "../api";
 import { uploadToCloudinary, isConfigured } from "../utils/cloudinary";
 import HelpTip from "../components/HelpTip";
 import DangerConfirm from "../components/DangerConfirm";
@@ -32,7 +39,8 @@ async function handleImageUpload(file, setUploading) {
 /* ── أنماط ثابتة ── */
 const shimmer = { background: "linear-gradient(90deg,#6366F1,#8B5CF6,#EC4899,#6366F1)", backgroundSize: "300% auto", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", animation: "shimmer 4s linear infinite" };
 const lbl   = { display: "block", marginBottom: 6, fontWeight: 700, fontSize: 14, color: "#334155" };
-const CARD  = { background: "#fff", borderRadius: 20, border: "1px solid #F1F5F9", boxShadow: shadow.md, padding: "24px" };
+const CARD  = { background: "#fff", borderRadius: 14, border: "1px solid #F1F5F9", boxShadow: "0 1px 2px rgba(15,23,42,.04)", padding: "20px" };
+const emptyBox = { textAlign: "center", padding: "24px", color: "#94A3B8", background: "#FAFBFC", borderRadius: 10, border: "1px dashed #EEF0F4", fontSize: 13 };
 const STATUSES = { NEW: { label: "جديد", col: "#6366F1", bg: "#EEF2FF" }, PROCESSING: { label: "قيد المعالجة", col: "#A855F7", bg: "#FDF4FF" }, SHIPPED: { label: "تم الشحن", col: "#F59E0B", bg: "#FFFBEB" }, DELIVERED: { label: "تم التسليم", col: "#10B981", bg: "#ECFDF5" }, CANCELED: { label: "ملغي", col: "#EF4444", bg: "#FEF2F2" } };
 
 /* ── بطاقة قابلة للطي للإعدادات المتقدمة ── */
@@ -71,7 +79,16 @@ function AdvCard({ title, icon, subtitle, open, onToggle, danger, children }) {
 /* ═══════════════════════════════════════════════════════ */
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [tab, setTab]   = useState("home");
+  const location = useLocation();
+  // Drive the active tab from ?tab= — the unified nav in AdminLayout sets this
+  // via <Link>, so react-router updates `location.search` and we re-render.
+  const tab = useMemo(() => {
+    const sp = new URLSearchParams(location.search);
+    return sp.get("tab") || "home";
+  }, [location.search]);
+  const setTab = (t) => {
+    navigate(t && t !== "home" ? `/admin-dashboard?tab=${t}` : "/admin-dashboard");
+  };
 
   /* بيانات */
   const { categories, refresh: refreshCategories } = useCategories();
@@ -93,7 +110,7 @@ export default function AdminDashboard() {
 
   /* حالات طيّ الأقسام */
   const [showLowStock, setShowLowStock] = useState(false);
-  const [openAdv, setOpenAdv] = useState({ loyalty: false, zones: false, vat: false, pixels: false, notify: false, security: false, danger: false });
+  const [openAdv, setOpenAdv] = useState({ coupons: false, loyalty: false, zones: false, vat: false, pixels: false, notify: false, security: false, danger: false });
   const toggleAdv = (k) => setOpenAdv(s => ({ ...s, [k]: !s[k] }));
 
   /* مودال تأكيد الحذف الخطر */
@@ -106,6 +123,7 @@ export default function AdminDashboard() {
   const [settingsQuery, setSettingsQuery] = useState("");
   const SETTINGS_NAV = [
     { id: "sec-store", icon: "🏪", label: "معلومات المتجر", keywords: "اسم متجر واتساب إعلان بريد عنوان" },
+    { id: "sec-coupons", icon: "🎟️", label: "الكوبونات", keywords: "كوبون كوبونات خصم coupon code" },
     { id: "sec-loyalty", icon: "⭐", label: "نظام النقط", keywords: "loyalty نقط خصم استبدال ولاء" },
     { id: "sec-shipping", icon: "🚚", label: "الشحن والطلبات", keywords: "شحن مجاني رسوم حد أدنى طلب" },
     { id: "sec-zones", icon: "📍", label: "مناطق الشحن", keywords: "مناطق إمارات دبي أبوظبي وزن" },
@@ -144,8 +162,21 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (localStorage.getItem("isAdmin") !== "true") { navigate("/user-login"); return; }
-    apiFetch("/api/orders").then(setOrders).catch(() => {});
   }, []);
+
+  // Refresh orders whenever the admin lands back on the home tab — and on
+  // window-focus while the home tab is visible — so KPIs (revenue, new
+  // orders count, recent orders) reflect what's happening right now,
+  // not whatever was there at first mount.
+  useEffect(() => {
+    if (tab !== "home") return;
+    let cancelled = false;
+    const load = () => apiFetch("/api/orders").then((data) => { if (!cancelled) setOrders(data); }).catch(() => {});
+    load();
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => { cancelled = true; window.removeEventListener("focus", onFocus); };
+  }, [tab]);
 
   /* ── إحصاءات ── */
   const stats = useMemo(() => {
@@ -436,362 +467,389 @@ export default function AdminDashboard() {
   /* ── آخر الطلبات ── */
   const recentOrders = useMemo(() => [...orders].slice(-5).reverse(), [orders]);
 
-  /* ── تابز ── */
-  const TABS = [
-    { key: "home",     label: "🏠 الرئيسية"  },
-    { key: "cats",     label: "📂 الأقسام"    },
-    { key: "products", label: "🏷️ المنتجات"  },
-    { key: "ratings",  label: "⭐ التقييمات" },
-    { key: "abandoned", label: "🛒 السلات المهجورة" },
-    { key: "settings", label: "⚙️ الإعدادات" },
-  ];
+  // Subtitle reflects active section so the sticky topbar always tells you where you are
+  const TAB_TITLES = {
+    home:      { title: "نظرة عامة",     subtitle: "ملخّص أداء المتجر اليوم" },
+    cats:      { title: "إدارة الأقسام",   subtitle: "تنظيم تصنيفات منتجاتك" },
+    products:  { title: "إدارة المنتجات", subtitle: `${stats.products} منتج · ${stats.outOfStock} نفد · ${stats.lowStock} منخفض` },
+    ratings:   { title: "التقييمات",       subtitle: "مراجعة وموافقة تقييمات العملاء" },
+    abandoned: { title: "السلات المهجورة", subtitle: "العملاء اللي ما أكملوا الطلب" },
+    settings:  { title: "الإعدادات",        subtitle: "تخصيص متجرك ومحركات الدفع والشحن" },
+  };
+  const headInfo = TAB_TITLES[tab] || TAB_TITLES.home;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'Tajawal',sans-serif", direction: "rtl" }}>
+    <>
       <style>{`
         @keyframes shimmer { 0%{background-position:200% center} 100%{background-position:-200% center} }
         @keyframes fadeUp  { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
         @keyframes slideIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
-        .admin-tab { transition: all .18s ease; cursor: pointer; }
-        .admin-tab:hover { background: rgba(99,102,241,.12)!important; }
         .prod-row { transition: background .15s; }
         .prod-row:hover { background: #F8FAFC!important; }
         .icon-btn { transition: transform .15s, opacity .15s; cursor: pointer; border: none; }
         .icon-btn:hover { transform: scale(1.1); opacity: .85; }
         .modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.55); backdrop-filter:blur(4px); z-index:800; display:flex; align-items:center; justify-content:center; padding:20px; }
         .modal-box { background:#fff; border-radius:24px; padding:28px; width:100%; max-width:600px; max-height:90vh; overflow-y:auto; box-shadow:0 32px 80px rgba(0,0,0,.2); animation:fadeUp .3s ease both; }
+        .adm-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+        .admin-2col { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; }
+        .admin-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
+        @media(max-width:1100px){ .adm-stats-grid { grid-template-columns: repeat(2,1fr); } }
         @media(max-width:900px){
-          .admin-stats { grid-template-columns: repeat(3,1fr) !important; }
-          .admin-2col  { grid-template-columns: 1fr !important; }
-        }
-        @media(max-width:900px){
-          .admin-nav-links .nav-secondary { display: none !important; }
+          .admin-2col  { grid-template-columns: 1fr; }
+          .admin-stats { grid-template-columns: repeat(2,1fr); }
         }
         @media(max-width:768px){
-          .admin-nav-links { gap: 4px !important; overflow-x: auto !important; flex-wrap: nowrap !important; max-width: 60% !important; }
-          .admin-nav-links a { padding: 7px 8px !important; font-size: 12px !important; white-space: nowrap !important; }
-          .admin-nav-label  { display: none !important; }
-          .admin-tabs { padding: 0 12px !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
-          .admin-tab  { padding: 12px 14px !important; font-size: 13px !important; white-space: nowrap !important; flex-shrink: 0 !important; }
-          .admin-stats { grid-template-columns: repeat(2,1fr) !important; }
-          .prod-table-wrap { overflow-x: auto !important; }
+          .prod-table-wrap { overflow-x: auto; }
           .prod-hide-mobile { display: none !important; }
           .settings-body { grid-template-columns: 1fr !important; }
           .settings-sidebar { position: static !important; overflow-x: auto !important; }
-          .admin-2col { grid-template-columns: 1fr !important; }
-          .admin-main { padding: 18px 14px !important; }
-          .adm-nav-logo-text { font-size: 14px !important; }
-        }
-        @media(max-width:480px){
-          .admin-stats { grid-template-columns: repeat(2,1fr) !important; }
-          .admin-main  { padding: 16px 12px !important; }
         }
       `}</style>
 
-      {/* ══ ناف ══ */}
-      <nav style={{ background: "#0F172A", borderBottom: "1px solid rgba(255,255,255,.08)", padding: "0 28px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 400 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: "linear-gradient(135deg,#6366F1,#8B5CF6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>⚙️</div>
-          <span style={{ fontSize: 18, fontWeight: 900 }}><span style={shimmer}>كشخة</span><span style={{ color: "#fff" }}> — لوحة التحكم</span></span>
-        </div>
-        <div className="admin-nav-links" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <AdminNotificationBell />
-          <Link to="/admin-orders" style={{ background: "#EEF2FF", color: "#6366F1", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13, position: "relative" }}>
-            📦 الطلبات
-            {stats.newOrders > 0 && <span style={{ position: "absolute", top: -6, left: -6, background: "#EF4444", color: "#fff", borderRadius: 999, width: 18, height: 18, fontSize: 10, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>{stats.newOrders}</span>}
-          </Link>
-          <Link to="/coupons"      style={{ background: "#FDF4FF", color: "#A855F7", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13 }}>🎟️ الكوبونات</Link>
-          <Link to="/add-product"  style={{ background: "#ECFDF5", color: "#10B981", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13 }}>➕ منتج جديد</Link>
-          <Link to="/bulk-import"  style={{ background: "#F0F9FF", color: "#0EA5E9", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13 }}>📥 استيراد CSV</Link>
-          <Link to="/customers"    style={{ background: "#FFFBEB", color: "#F59E0B", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13 }}>👥 العملاء</Link>
-          <Link to="/home" style={{ background: "rgba(255,255,255,.08)", color: "rgba(255,255,255,.7)", border: "1.5px solid rgba(255,255,255,.12)", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13 }}>← المتجر</Link>
-        </div>
-      </nav>
-
-      {/* ══ تابز ══ */}
-      <div className="admin-tabs" style={{ background: "#fff", borderBottom: "1px solid #F1F5F9", padding: "0 28px", display: "flex", gap: 4 }}>
-        {TABS.map(t => (
-          <button key={t.key} className="admin-tab" onClick={() => setTab(t.key)}
-            style={{ padding: "14px 20px", fontWeight: tab === t.key ? 800 : 600, fontSize: 14, color: tab === t.key ? "#6366F1" : "#64748B", background: "transparent", border: "none", borderBottom: tab === t.key ? "3px solid #6366F1" : "3px solid transparent", fontFamily: "'Tajawal',sans-serif", marginBottom: -1 }}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      <main className="admin-main" style={{ maxWidth: 1200, margin: "0 auto", padding: "28px 24px" }}>
-
+      <AdminLayout
+        title={headInfo.title}
+        subtitle={headInfo.subtitle}
+        badges={{ newOrders: stats.newOrders }}
+      >
         {/* ════════════ الرئيسية ════════════ */}
         {tab === "home" && (
-          <div style={{ display: "grid", gap: 24, animation: "fadeUp .4s ease both" }}>
+          <div style={{ display: "grid", gap: 20, animation: "fadeUp .4s ease both" }}>
 
-            {/* إحصاءات */}
-            <div className="admin-stats" style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 14 }}>
-              {[
-                { icon: "📦", label: "الطلبات",       val: stats.orders,     col: "#6366F1" },
-                { icon: "🔴", label: "جديدة",          val: stats.newOrders,  col: "#EC4899" },
-                { icon: "🏷️", label: "المنتجات",      val: stats.products,   col: "#10B981" },
-                { icon: "📂", label: "الأقسام",         val: stats.categories, col: "#F59E0B" },
-                { icon: "⚠️", label: "مخزون منخفض",   val: stats.lowStock,   col: "#EF4444" },
-                { icon: "💰", label: "الإيرادات",      val: `${stats.revenue.toFixed(0)}د`, col: "#0EA5E9" },
-              ].map((s, i) => (
-                <div key={i} style={{ background: "#fff", borderRadius: 18, border: "1px solid #F1F5F9", boxShadow: shadow.sm, padding: "18px 16px", borderTop: `3px solid ${s.col}`, animation: `fadeUp .4s ${i * .05}s both`, textAlign: "center" }}>
-                  <div style={{ fontSize: 24, marginBottom: 6 }}>{s.icon}</div>
-                  <div style={{ fontWeight: 900, fontSize: 26, color: s.col, lineHeight: 1 }}>{s.val}</div>
-                  <div style={{ color: "#94A3B8", fontSize: 12, marginTop: 4 }}>{s.label}</div>
-                </div>
-              ))}
+            {/* الإحصاءات الرئيسية — صفّ نظيف بأيقونات SVG */}
+            <div className="adm-stats-grid">
+              <Stat icon={IconWallet} tone="default" label="الإيرادات (مسلّمة)"
+                value={fmt(stats.revenue)}
+                hint={stats.deliveredCount ? `${stats.deliveredCount} طلب مسلّم` : "لا مبيعات بعد"}
+                trend={insights.growth} />
+              <Stat icon={IconReceipt} tone="pink" label="إجمالي الطلبات"
+                value={stats.orders}
+                hint={`${stats.newOrders} جديدة · ${stats.processing} قيد المعالجة`} />
+              <Stat icon={IconBox} tone="success" label="المنتجات"
+                value={stats.products}
+                hint={`${stats.categories} قسم`} />
+              <Stat icon={IconAlert} tone={stats.outOfStock + stats.lowStock > 0 ? "danger" : "success"} label="حالة المخزون"
+                value={stats.outOfStock + stats.lowStock}
+                hint={`${stats.outOfStock} نفد · ${stats.lowStock} منخفض`} />
             </div>
 
             {/* ══ مهام اليوم ══ */}
             {todayTasks.length > 0 ? (
-              <div style={{ ...CARD, background: "linear-gradient(135deg,#FEF3C7 0%,#FFF 30%)" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                  <h3 style={{ margin: 0, fontWeight: 900, fontSize: 16, color: "#0F172A" }}>
-                    🎯 مهام اليوم
-                    <span style={{ marginInlineStart: 8, background: "#F59E0B", color: "#fff", borderRadius: 999, padding: "2px 10px", fontSize: 12, fontWeight: 800 }}>{todayTasks.length}</span>
-                  </h3>
-                  <span style={{ fontSize: 12, color: "#64748B", fontWeight: 700 }}>أمور تحتاج انتباهك</span>
-                </div>
+              <Card>
+                <SectionHeader
+                  title="يحتاج انتباهك"
+                  hint={`${todayTasks.length} عنصر يحتاج إجراء`}
+                />
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10 }}>
                   {todayTasks.map((task, i) => {
                     const Inner = (
                       <>
-                        <div style={{ width: 42, height: 42, borderRadius: 10, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>{task.icon}</div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 800, fontSize: 13, color: "#0F172A", lineHeight: 1.4 }}>{task.label}</div>
-                          <div style={{ fontSize: 11, color: task.color, fontWeight: 700, marginTop: 2 }}>{task.count} {task.count === 1 ? "عنصر" : "عناصر"}</div>
+                        <div style={{
+                          width: 36, height: 36, borderRadius: 9,
+                          background: task.bg, color: task.color,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          flexShrink: 0,
+                        }}>
+                          {task.label.includes("جديدة") ? <IconReceipt size={18} /> :
+                           task.label.includes("معالجة") ? <IconClock size={18} /> :
+                           task.label.includes("نفد")  ? <IconBox size={18} /> :
+                           task.label.includes("منخفض") ? <IconAlert size={18} /> :
+                           task.label.includes("صورة")  ? <IconImage size={18} /> :
+                           task.label.includes("قسم")   ? <IconFolder size={18} /> : <IconAlert size={18} />}
                         </div>
-                        <div style={{ background: task.color, color: "#fff", borderRadius: 999, padding: "3px 11px", fontSize: 13, fontWeight: 900, flexShrink: 0 }}>{task.count}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: ADMIN.text, lineHeight: 1.4 }}>{task.label}</div>
+                          <div style={{ fontSize: 11, color: ADMIN.textMuted, marginTop: 2 }}>{task.count} {task.count === 1 ? "عنصر" : "عناصر"}</div>
+                        </div>
+                        <span style={{
+                          background: task.color, color: "#fff", borderRadius: 999,
+                          padding: "2px 10px", fontSize: 12, fontWeight: 800, flexShrink: 0,
+                        }}>{task.count}</span>
+                        <IconArrowRight size={14} style={{ color: ADMIN.textSubtle, transform: "scaleX(-1)" }} />
                       </>
                     );
-                    const style = { display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 14, background: task.bg, border: `1.5px solid ${task.border}`, cursor: "pointer", transition: "transform .15s, box-shadow .15s", textDecoration: "none", fontFamily: "'Tajawal',sans-serif" };
-                    const hover = e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 8px 20px ${task.color}22`; };
-                    const unhover = e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; };
+                    const style = {
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "11px 14px", borderRadius: 10,
+                      background: "#FAFBFC", border: "1px solid #EEF0F4",
+                      cursor: "pointer", textDecoration: "none",
+                      fontFamily: "'Tajawal',sans-serif",
+                      transition: "border-color .15s, background .15s",
+                    };
+                    const hover = e => { e.currentTarget.style.borderColor = task.color; e.currentTarget.style.background = "#fff"; };
+                    const unhover = e => { e.currentTarget.style.borderColor = "#EEF0F4"; e.currentTarget.style.background = "#FAFBFC"; };
                     return task.to ? (
                       <Link key={i} to={task.to} style={style} onMouseEnter={hover} onMouseLeave={unhover}>{Inner}</Link>
                     ) : (
-                      <button key={i} onClick={() => setTab(task.tab)} style={{ ...style, border: `1.5px solid ${task.border}`, width: "100%", textAlign: "inherit" }} onMouseEnter={hover} onMouseLeave={unhover}>{Inner}</button>
+                      <button key={i} onClick={() => setTab(task.tab)} style={{ ...style, width: "100%", textAlign: "inherit" }} onMouseEnter={hover} onMouseLeave={unhover}>{Inner}</button>
                     );
                   })}
                 </div>
-              </div>
+              </Card>
             ) : stats.products > 0 ? (
-              <div style={{ ...CARD, background: "linear-gradient(135deg,#D1FAE5 0%,#FFF 60%)", textAlign: "center", padding: "24px" }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>🎉</div>
-                <div style={{ fontWeight: 900, fontSize: 16, color: "#065F46" }}>كل شي تمام!</div>
-                <div style={{ fontSize: 13, color: "#047857", marginTop: 4 }}>ما في مهام مستعجلة الآن</div>
-              </div>
+              <Card>
+                <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "8px 4px" }}>
+                  <div style={{
+                    width: 42, height: 42, borderRadius: 11,
+                    background: "#ECFDF5", color: "#10B981",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    <IconCheckCircle size={22} />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: ADMIN.text }}>كل شي تمام</div>
+                    <div style={{ fontSize: 12, color: ADMIN.textMuted, marginTop: 2 }}>لا توجد مهام عاجلة الآن</div>
+                  </div>
+                </div>
+              </Card>
             ) : null}
 
             {/* ── بطاقات تحليلات سريعة ── */}
-            <div className="admin-stats" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
-              {[
-                {
-                  icon: "💵", label: "متوسط قيمة الطلب (AOV)",
-                  val: stats.aov > 0 ? `${stats.aov.toFixed(0)}د` : "—",
-                  hint: stats.deliveredCount ? `من ${stats.deliveredCount} طلب مسلّم` : "ما في طلبات مسلّمة",
-                  col: "#6366F1",
-                },
-                {
-                  icon: "📅", label: "أفضل يوم (هذا الأسبوع)",
-                  val: insights.bestDay?.total > 0 ? insights.bestDay.label : "—",
-                  hint: insights.bestDay?.total > 0 ? fmt(insights.bestDay.total) : "ما في مبيعات",
-                  col: "#10B981",
-                },
-                {
-                  icon: insights.growth >= 0 ? "📈" : "📉", label: "مقارنة بأمس",
-                  val: `${insights.growth >= 0 ? "+" : ""}${insights.growth.toFixed(0)}%`,
-                  hint: `اليوم ${insights.today.toFixed(0)}د vs أمس ${insights.yesterday.toFixed(0)}د`,
-                  col: insights.growth >= 0 ? "#10B981" : "#EF4444",
-                },
-                {
-                  icon: "👥", label: "عملاء فريدين",
-                  val: insights.uniqueCustomers || 0,
-                  hint: `من ${stats.orders} طلب`,
-                  col: "#F59E0B",
-                },
-              ].map((s, i) => (
-                <div key={i} style={{ background: "#fff", borderRadius: 16, border: "1px solid #F1F5F9", boxShadow: shadow.sm, padding: "16px", borderInlineStart: `3px solid ${s.col}` }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                    <span style={{ fontSize: 20 }}>{s.icon}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B" }}>{s.label}</span>
-                  </div>
-                  <div style={{ fontWeight: 900, fontSize: 22, color: s.col, lineHeight: 1.2 }}>{s.val}</div>
-                  <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>{s.hint}</div>
-                </div>
-              ))}
+            <div className="adm-stats-grid">
+              <Stat icon={IconWallet} tone="default" label="متوسط قيمة الطلب"
+                value={stats.aov > 0 ? fmt(stats.aov) : "—"}
+                hint={stats.deliveredCount ? `من ${stats.deliveredCount} طلب مسلّم` : "لا طلبات مسلّمة"} />
+              <Stat icon={IconChart} tone="success" label="أفضل يوم (الأسبوع)"
+                value={insights.bestDay?.total > 0 ? insights.bestDay.label : "—"}
+                hint={insights.bestDay?.total > 0 ? fmt(insights.bestDay.total) : "لا مبيعات"} />
+              <Stat icon={IconSparkles} tone={insights.growth >= 0 ? "success" : "danger"} label="مقارنة بأمس"
+                value={`${insights.growth >= 0 ? "+" : ""}${insights.growth.toFixed(0)}%`}
+                hint={`اليوم ${fmt(insights.today)} • أمس ${fmt(insights.yesterday)}`} />
+              <Stat icon={IconUsers} tone="warn" label="عملاء فريدين"
+                value={insights.uniqueCustomers || 0}
+                hint={`من إجمالي ${stats.orders} طلب`} />
             </div>
 
             {/* ── رسم الإيرادات الأسبوعية ── */}
             {(() => {
               const maxVal = Math.max(...weeklyRevenue.map(d => d.total), 1);
+              const total7 = weeklyRevenue.reduce((s, d) => s + d.total, 0);
               return (
-                <div style={{ ...CARD }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                    <h3 style={{ fontWeight: 800, fontSize: 16, color: "#0F172A", margin: 0 }}>📈 إيرادات آخر 7 أيام</h3>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <span style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>معدّل يومي: {fmt(insights.avgDaily)}</span>
-                      <span style={{ background: "#EEF2FF", color: "#6366F1", borderRadius: 999, padding: "4px 12px", fontSize: 13, fontWeight: 700 }}>{fmt(weeklyRevenue.reduce((s,d)=>s+d.total,0))}</span>
-                    </div>
+                <Card>
+                  <SectionHeader
+                    title="إيرادات آخر 7 أيام"
+                    hint={`معدّل يومي ${fmt(insights.avgDaily)} • إجمالي ${fmt(total7)}`}
+                  />
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 140, paddingTop: 16 }}>
+                    {weeklyRevenue.map((d, i) => {
+                      const isBest = d === insights.bestDay && d.total > 0;
+                      const h = Math.max((d.total / maxVal) * 100, d.total > 0 ? 8 : 4);
+                      return (
+                        <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: isBest ? "#10B981" : ADMIN.textMuted, opacity: d.total > 0 ? 1 : 0, height: 14 }}>
+                            {d.total > 0 ? Number(d.total).toFixed(0) : ""}
+                          </span>
+                          <div style={{
+                            width: "100%",
+                            background: d.total > 0
+                              ? (isBest ? "linear-gradient(180deg,#10B981,#059669)" : "linear-gradient(180deg,#6366F1,#8B5CF6)")
+                              : "#F1F5F9",
+                            borderRadius: "8px 8px 4px 4px",
+                            height: `${h}%`, minHeight: 4,
+                            transition: "height .8s cubic-bezier(.4,0,.2,1)",
+                          }} />
+                          <span style={{ fontSize: 11, color: ADMIN.textSubtle, fontWeight: 600 }}>{d.label}</span>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 120 }}>
-                    {weeklyRevenue.map((d, i) => (
-                      <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: "#6366F1", opacity: d.total > 0 ? 1 : 0 }}>{d.total > 0 ? fmt(d.total).replace(" درهم","") : ""}</span>
-                        <div style={{ width: "100%", background: d === insights.bestDay && d.total > 0 ? "linear-gradient(180deg,#10B981,#059669)" : d.total > 0 ? "linear-gradient(180deg,#6366F1,#8B5CF6)" : "#F1F5F9", borderRadius: "6px 6px 0 0", height: Math.max((d.total / maxVal) * 90, d.total > 0 ? 8 : 4), transition: "height 1s ease", minHeight: 4 }} />
-                        <span style={{ fontSize: 11, color: "#94A3B8", fontWeight: 600, whiteSpace: "nowrap" }}>{d.label}{d === insights.bestDay && d.total > 0 ? " 🏆" : ""}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                </Card>
               );
             })()}
 
             {/* ── أكثر المنتجات مبيعاً + مخطط الطلبات ── */}
-            <div className="admin-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            <div className="admin-2col" style={{ gridTemplateColumns: "1fr 1fr" }}>
 
-            {/* أكثر المنتجات مبيعاً */}
-            <div style={CARD}>
-              <h3 style={{ fontWeight: 800, fontSize: 16, color: "#0F172A", marginBottom: 18 }}>🏆 أكثر المنتجات مبيعاً</h3>
-              {topProducts.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "28px", color: "#94A3B8", background: "#F8FAFC", borderRadius: 14, border: "2px dashed #E2E8F0" }}>لا توجد مبيعات بعد</div>
-              ) : (
-                <div style={{ display: "grid", gap: 10 }}>
-                  {topProducts.map((p, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 12, background: i === 0 ? "#FFFBEB" : "#F8FAFC", border: `1px solid ${i === 0 ? "#FDE68A" : "#F1F5F9"}` }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 8, background: ["#F59E0B","#94A3B8","#CD7F32","#EEF2FF","#EEF2FF"][i], display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, color: i < 3 ? "#fff" : "#6366F1", flexShrink: 0 }}>
-                        {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
-                      </div>
-                      <span style={{ flex: 1, fontWeight: 700, fontSize: 13, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
-                      <span style={{ background: "#EEF2FF", color: "#6366F1", borderRadius: 999, padding: "3px 10px", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{p.qty} قطعة</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* مخطط الطلبات حسب الحالة */}
-            {orders.length > 0 && (() => {
-              const statusCounts = Object.entries(STATUSES).map(([key, s]) => ({ ...s, key, count: orders.filter(o => o.status === key).length }));
-              const max = Math.max(...statusCounts.map(s => s.count), 1);
-              return (
-                <div style={{ ...CARD, padding: "24px" }}>
-                  <h3 style={{ fontWeight: 800, fontSize: 16, color: "#0F172A", marginBottom: 20 }}>📊 توزيع الطلبات حسب الحالة</h3>
-                  <div style={{ display: "grid", gap: 10 }}>
-                    {statusCounts.map((s) => (
-                      <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <div style={{ width: 80, fontSize: 12, fontWeight: 700, color: "#64748B", flexShrink: 0, textAlign: "right" }}>{s.label}</div>
-                        <div style={{ flex: 1, height: 24, background: "#F1F5F9", borderRadius: 999, overflow: "hidden", position: "relative" }}>
-                          <div style={{ height: "100%", width: `${(s.count / max) * 100}%`, background: s.col, borderRadius: 999, transition: "width 1s ease", minWidth: s.count > 0 ? 28 : 0, display: "flex", alignItems: "center", justifyContent: "flex-end", paddingLeft: 8 }}>
-                            {s.count > 0 && <span style={{ color: "#fff", fontSize: 11, fontWeight: 800 }}>{s.count}</span>}
-                          </div>
-                        </div>
-                        <div style={{ width: 28, fontSize: 13, fontWeight: 900, color: s.col, textAlign: "center", flexShrink: 0 }}>{s.count}</div>
+              {/* أكثر المنتجات مبيعاً */}
+              <Card>
+                <SectionHeader title="الأكثر مبيعاً" hint="ترتيب المنتجات حسب الكمية المباعة" />
+                {topProducts.length === 0 ? (
+                  <div style={emptyBox}>لا توجد مبيعات بعد</div>
+                ) : (
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {topProducts.map((p, i) => (
+                      <div key={i} style={{
+                        display: "flex", alignItems: "center", gap: 12,
+                        padding: "9px 12px", borderRadius: 10,
+                        background: "#FAFBFC", border: "1px solid #EEF0F4",
+                      }}>
+                        <div style={{
+                          width: 26, height: 26, borderRadius: 7,
+                          background: i === 0 ? "#F59E0B" : i === 1 ? "#94A3B8" : i === 2 ? "#CD7F32" : "#EEF2FF",
+                          color: i < 3 ? "#fff" : "#6366F1",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontWeight: 800, fontSize: 12, flexShrink: 0,
+                        }}>{i + 1}</div>
+                        <span style={{ flex: 1, fontWeight: 600, fontSize: 13, color: ADMIN.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+                        <span style={{
+                          background: ADMIN.accentBg, color: ADMIN.accent, borderRadius: 999,
+                          padding: "2px 10px", fontSize: 11, fontWeight: 700, flexShrink: 0,
+                        }}>{p.qty}×</span>
                       </div>
                     ))}
                   </div>
-                </div>
-              );
-            })()}
+                )}
+              </Card>
+
+              {/* مخطط الطلبات حسب الحالة */}
+              {orders.length > 0 && (() => {
+                const statusCounts = Object.entries(STATUSES).map(([key, s]) => ({ ...s, key, count: orders.filter(o => o.status === key).length }));
+                const max = Math.max(...statusCounts.map(s => s.count), 1);
+                return (
+                  <Card>
+                    <SectionHeader title="توزيع الطلبات" hint="حسب الحالة الحالية" />
+                    <div style={{ display: "grid", gap: 12 }}>
+                      {statusCounts.map((s) => (
+                        <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{ width: 82, fontSize: 12, fontWeight: 600, color: ADMIN.textMuted, flexShrink: 0 }}>{s.label}</div>
+                          <div style={{ flex: 1, height: 8, background: "#F1F5F9", borderRadius: 999, overflow: "hidden" }}>
+                            <div style={{
+                              height: "100%", width: `${(s.count / max) * 100}%`,
+                              background: s.col, borderRadius: 999,
+                              transition: "width 1s ease",
+                            }} />
+                          </div>
+                          <div style={{ width: 28, fontSize: 13, fontWeight: 800, color: s.col, textAlign: "center", flexShrink: 0 }}>{s.count}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                );
+              })()}
 
             </div>{/* إغلاق admin-2col للمبيعات */}
 
             {/* آخر الطلبات + منتجات قليلة المخزون */}
-            <div className="admin-2col" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20 }}>
+            <div className="admin-2col">
 
               {/* آخر الطلبات */}
-              <div style={CARD}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                  <h3 style={{ fontWeight: 800, fontSize: 16, color: "#0F172A" }}>🕒 آخر الطلبات</h3>
-                  <Link to="/admin-orders" style={{ color: "#6366F1", fontSize: 13, fontWeight: 700 }}>عرض الكل ←</Link>
-                </div>
+              <Card>
+                <SectionHeader
+                  title="آخر الطلبات"
+                  hint={`${recentOrders.length} طلب أخير`}
+                  action={
+                    <Link to="/admin-orders" style={{
+                      display: "inline-flex", alignItems: "center", gap: 4,
+                      color: ADMIN.accent, fontSize: 12, fontWeight: 700,
+                      textDecoration: "none",
+                    }}>
+                      عرض الكل <IconArrowRight size={12} style={{ transform: "scaleX(-1)" }} />
+                    </Link>
+                  }
+                />
                 {recentOrders.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "28px", color: "#94A3B8", background: "#F8FAFC", borderRadius: 14, border: "2px dashed #E2E8F0" }}>لا توجد طلبات بعد</div>
+                  <div style={emptyBox}>لا توجد طلبات بعد</div>
                 ) : (
-                  <div style={{ display: "grid", gap: 10 }}>
+                  <div style={{ display: "grid", gap: 6 }}>
                     {recentOrders.map((o, i) => {
                       const st = STATUSES[o.status] || STATUSES.NEW;
                       return (
-                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, background: "#F8FAFC", border: "1px solid #F1F5F9" }}>
-                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: st.col, flexShrink: 0 }} />
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: "#0F172A" }}>{o.customer?.name || "—"}</div>
-                            <div style={{ fontSize: 12, color: "#94A3B8" }}>{o.id}</div>
+                        <div key={i} style={{
+                          display: "flex", alignItems: "center", gap: 12,
+                          padding: "10px 12px", borderRadius: 10,
+                          background: "#FAFBFC", border: "1px solid #EEF0F4",
+                        }}>
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: st.col, flexShrink: 0 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: ADMIN.text }}>{o.customer?.name || "—"}</div>
+                            <div style={{ fontSize: 11, color: ADMIN.textSubtle, fontFamily: "monospace" }}>{String(o.id || "").slice(0, 8)}</div>
                           </div>
-                          <span style={{ background: st.bg, color: st.col, borderRadius: 999, padding: "3px 10px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{st.label}</span>
-                          <span style={{ fontWeight: 800, color: "#6366F1", fontSize: 14, whiteSpace: "nowrap" }}>{fmt(o.totals?.grandTotal || o.total || 0)}</span>
+                          <span style={{
+                            background: st.bg, color: st.col, borderRadius: 6,
+                            padding: "2px 8px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
+                          }}>{st.label}</span>
+                          <span style={{ fontWeight: 700, color: ADMIN.text, fontSize: 13, whiteSpace: "nowrap" }}>{fmt(o.totals?.grandTotal || o.total || 0)}</span>
                         </div>
                       );
                     })}
                   </div>
                 )}
-              </div>
+              </Card>
 
               {/* منتجات قليلة المخزون */}
-              <div style={CARD}>
-                <button onClick={() => setShowLowStock(v => !v)}
-                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "transparent", border: "none", padding: 0, cursor: stats.lowStock > 0 ? "pointer" : "default", marginBottom: showLowStock ? 20 : 0, fontFamily: "'Tajawal',sans-serif" }}
-                  disabled={stats.lowStock === 0}>
-                  <h3 style={{ fontWeight: 800, fontSize: 16, color: "#0F172A", margin: 0 }}>⚠️ مخزون منخفض</h3>
-                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ background: "#FEF2F2", color: "#EF4444", borderRadius: 999, padding: "3px 12px", fontSize: 12, fontWeight: 700 }}>{stats.lowStock} منتج</span>
-                    {stats.lowStock > 0 && (
-                      <span style={{ fontSize: 14, color: "#94A3B8", transform: showLowStock ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▾</span>
-                    )}
-                  </span>
-                </button>
+              <Card>
+                <SectionHeader
+                  title="مخزون منخفض"
+                  hint={stats.lowStock === 0 ? "كل المنتجات متوفرة" : `${stats.lowStock} منتج يحتاج تجديد`}
+                  action={stats.lowStock > 0 && (
+                    <button
+                      onClick={() => setShowLowStock(v => !v)}
+                      style={{
+                        background: "transparent", border: "none", cursor: "pointer",
+                        color: ADMIN.accent, fontSize: 12, fontWeight: 700, fontFamily: "'Tajawal',sans-serif",
+                      }}
+                    >{showLowStock ? "إخفاء" : "عرض"}</button>
+                  )}
+                />
                 {stats.lowStock === 0 ? (
-                  <div style={{ textAlign: "center", padding: "28px", color: "#10B981", background: "#ECFDF5", borderRadius: 14, marginTop: 20 }}>✅ جميع المنتجات متوفرة</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: "#ECFDF5", color: "#059669", borderRadius: 10, fontSize: 13, fontWeight: 600 }}>
+                    <IconCheckCircle size={18} />
+                    جميع المنتجات متوفرة
+                  </div>
                 ) : showLowStock ? (
-                  <div style={{ display: "grid", gap: 8, maxHeight: 360, overflowY: "auto", paddingInlineEnd: 4 }}>
+                  <div className="adm-noscrollbar" style={{ display: "grid", gap: 6, maxHeight: 280, overflowY: "auto" }}>
                     {products.filter(p => Number.isFinite(p.stock) && p.stock <= (p.lowStockThreshold || 5) && p.stock > 0)
                       .sort((a, b) => a.stock - b.stock)
                       .map((p, i) => (
-                        <Link key={i} to={`/product/${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, background: "#FEF2F2", border: "1px solid #FECACA", textDecoration: "none" }}>
-                          <div style={{ width: 36, height: 36, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "#fff" }}>
-                            <img src={p.image || ""} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
+                        <Link key={i} to={`/product/${p.id}`} style={{
+                          display: "flex", alignItems: "center", gap: 10,
+                          padding: "8px 10px", borderRadius: 10,
+                          background: "#FAFBFC", border: "1px solid #EEF0F4",
+                          textDecoration: "none",
+                        }}>
+                          <div style={{ width: 32, height: 32, borderRadius: 7, overflow: "hidden", flexShrink: 0, background: "#fff", border: "1px solid #F1F5F9" }}>
+                            {p.image
+                              ? <img src={p.image} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.currentTarget.style.display = "none"} />
+                              : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: ADMIN.textSubtle }}><IconImage size={14} /></div>}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 700, fontSize: 13, color: "#0F172A", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
-                            <div style={{ fontSize: 12, color: "#EF4444", fontWeight: 700 }}>بقي {p.stock} فقط</div>
+                            <div style={{ fontWeight: 600, fontSize: 13, color: ADMIN.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                            <div style={{ fontSize: 11, color: "#EF4444", fontWeight: 700, marginTop: 1 }}>بقي {p.stock} فقط</div>
                           </div>
-                          <span style={{ color: "#94A3B8", fontSize: 14 }}>←</span>
+                          <IconArrowRight size={14} style={{ color: ADMIN.textSubtle, transform: "scaleX(-1)" }} />
                         </Link>
                       ))}
                   </div>
                 ) : null}
-              </div>
+              </Card>
             </div>
 
             {/* إجراءات سريعة */}
-            <div style={CARD}>
-              <h3 style={{ fontWeight: 800, fontSize: 16, color: "#0F172A", marginBottom: 16 }}>⚡ إجراءات سريعة</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12 }}>
+            <Card>
+              <SectionHeader title="إجراءات سريعة" hint="الاختصارات الأكثر استخداماً" />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
                 {[
-                  { icon: "➕", label: "إضافة منتج",   to: "/add-product",    col: "#10B981", bg: "#ECFDF5" },
-                  { icon: "📦", label: "إدارة الطلبات", to: "/admin-orders",   col: "#6366F1", bg: "#EEF2FF" },
-                  { icon: "📂", label: "إدارة الأقسام", tab: "cats",           col: "#F59E0B", bg: "#FFFBEB" },
-                  { icon: "👥", label: "العملاء",         to: "/customers",     col: "#F59E0B", bg: "#FFFBEB" },
-                  { icon: "⚙️", label: "إعدادات المتجر", tab: "settings",      col: "#EC4899", bg: "#FDF2F8" },
-                ].map((a, i) => (
-                  a.to ? (
-                    <Link key={i} to={a.to} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "20px 12px", borderRadius: 16, background: a.bg, border: `1.5px solid ${a.col}22`, transition: "transform .15s, box-shadow .15s" }}
-                      onMouseOver={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = `0 8px 20px ${a.col}22`; }}
-                      onMouseOut={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}>
-                      <span style={{ fontSize: 28 }}>{a.icon}</span>
-                      <span style={{ fontWeight: 700, fontSize: 13, color: a.col }}>{a.label}</span>
+                  { icon: IconPlus,     label: "إضافة منتج",   to: "/add-product"      },
+                  { icon: IconReceipt,  label: "إدارة الطلبات", to: "/admin-orders"     },
+                  { icon: IconFolder,   label: "إدارة الأقسام", tab: "cats"             },
+                  { icon: IconUsers,    label: "العملاء",       to: "/customers"        },
+                  { icon: IconTicket,   label: "الكوبونات",     tab: "settings"          },
+                  { icon: IconUpload,   label: "استيراد جماعي", to: "/bulk-import"      },
+                  { icon: IconSettings, label: "الإعدادات",     tab: "settings"         },
+                ].map((a, i) => {
+                  const Ic = a.icon;
+                  const sty = {
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "11px 14px", borderRadius: 10,
+                    background: "#FAFBFC", border: "1px solid #EEF0F4",
+                    color: ADMIN.text, textDecoration: "none",
+                    cursor: "pointer", fontFamily: "'Tajawal',sans-serif",
+                    fontWeight: 600, fontSize: 13, textAlign: "inherit",
+                    transition: "border-color .15s, color .15s, background .15s",
+                  };
+                  const hover  = e => { e.currentTarget.style.borderColor = ADMIN.accent; e.currentTarget.style.color = ADMIN.accent; e.currentTarget.style.background = "#fff"; };
+                  const unhov  = e => { e.currentTarget.style.borderColor = "#EEF0F4";    e.currentTarget.style.color = ADMIN.text;   e.currentTarget.style.background = "#FAFBFC"; };
+                  return a.to ? (
+                    <Link key={i} to={a.to} style={sty} onMouseEnter={hover} onMouseLeave={unhov}>
+                      <Ic size={17} /> {a.label}
                     </Link>
                   ) : (
-                    <button key={i} onClick={() => setTab(a.tab)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "20px 12px", borderRadius: 16, background: a.bg, border: `1.5px solid ${a.col}22`, cursor: "pointer", fontFamily: "'Tajawal',sans-serif", transition: "transform .15s, box-shadow .15s" }}
-                      onMouseOver={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = `0 8px 20px ${a.col}22`; }}
-                      onMouseOut={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}>
-                      <span style={{ fontSize: 28 }}>{a.icon}</span>
-                      <span style={{ fontWeight: 700, fontSize: 13, color: a.col }}>{a.label}</span>
+                    <button key={i} onClick={() => setTab(a.tab)} style={{ ...sty, width: "100%" }} onMouseEnter={hover} onMouseLeave={unhov}>
+                      <Ic size={17} /> {a.label}
                     </button>
-                  )
-                ))}
+                  );
+                })}
               </div>
-            </div>
+            </Card>
           </div>
         )}
 
@@ -850,7 +908,11 @@ export default function AdminDashboard() {
                         <div style={{ fontWeight: 700, color: "#0F172A", marginBottom: 8 }}>{cat.name}</div>
                         <div style={{ display: "flex", gap: 6 }}>
                           <button className="icon-btn" onClick={() => { setCatEdit(cat.id); setCatForm({ name: cat.name || "", nameEn: cat.nameEn || "", image: cat.image || "" }); }} style={{ background: "#EEF2FF", color: "#6366F1", borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 700, fontFamily: "'Tajawal',sans-serif" }}>✏️ تعديل</button>
-                          <button className="icon-btn" onClick={() => { if (window.confirm(`حذف "${cat.name}"؟`)) deleteCategory(cat.id); }} style={{ background: "#FEF2F2", color: "#EF4444", borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 700, fontFamily: "'Tajawal',sans-serif" }}>🗑️ حذف</button>
+                          <button className="icon-btn" onClick={async () => {
+                            if (!window.confirm(`حذف "${cat.name}"؟`)) return;
+                            try { await deleteCategory(cat.id); await refreshCategories(); }
+                            catch (e) { alert("❌ فشل الحذف: " + (e?.message || "")); }
+                          }} style={{ background: "#FEF2F2", color: "#EF4444", borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 700, fontFamily: "'Tajawal',sans-serif" }}>🗑️ حذف</button>
                         </div>
                       </div>
                     </div>
@@ -992,7 +1054,7 @@ export default function AdminDashboard() {
             )}
 
             {/* جدول المنتجات */}
-            <div className="prod-table-wrap" style={{ background: "#fff", borderRadius: 20, border: "1px solid #F1F5F9", boxShadow: shadow.md, overflow: "auto" }}>
+            <div className="prod-table-wrap adm-noscrollbar" style={{ background: "#fff", borderRadius: 20, border: "1px solid #F1F5F9", boxShadow: shadow.md, overflow: "auto" }}>
               {filteredProds.length === 0 ? (
                 <div style={{ textAlign: "center", padding: "60px", color: "#94A3B8" }}>
                   <div style={{ fontSize: 48, marginBottom: 12 }}>📦</div>
@@ -1162,6 +1224,19 @@ export default function AdminDashboard() {
                   <input placeholder="مثال: دبي، الإمارات" value={settings.storeAddress || ""} onChange={e => setSettings(s => ({ ...s, storeAddress: e.target.value }))} style={inputBase} onFocus={focusIn} onBlur={focusOut} />
                 </div>
               </div>
+            </div>
+
+            {/* الكوبونات */}
+            <div id="sec-coupons" style={{ display: visibleSettingsSections.has("sec-coupons") ? "block" : "none" }}>
+              <AdvCard
+                title="الكوبونات"
+                icon="🎟️"
+                subtitle="إنشاء وإدارة أكواد الخصم — نسبة مئوية أو مبلغ ثابت"
+                open={openAdv.coupons}
+                onToggle={() => toggleAdv("coupons")}
+              >
+                <CouponsManager />
+              </AdvCard>
             </div>
 
             {/* نظام النقط */}
@@ -1507,7 +1582,6 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
-      </main>
 
       {/* ════════ مودال تعديل المنتج ════════ */}
       {prodEdit !== null && (
@@ -1616,7 +1690,8 @@ export default function AdminDashboard() {
         onCancel={() => !dangerModal?.busy && setDangerModal(null)}
         onConfirm={() => dangerModal?.onConfirm?.()}
       />
-    </div>
+      </AdminLayout>
+    </>
   );
 }
 
@@ -2139,10 +2214,10 @@ function AdminPasswordCard() {
         body: { currentPassword: form.current, newPassword: form.next },
       });
       alert("✅ تم تغيير كلمة السر — رح تتسجّل خروج. سجّل دخول بالكلمة الجديدة.");
-      // Force re-login with the new password — old JWT remains valid until
-      // 7-day expiry but clearing the local session is what UX expects.
-      localStorage.removeItem("token");
-      localStorage.removeItem("isAdmin");
+      // Force re-login with the new password. clearAuth wipes the full
+      // auth set (token, user, isAdmin, userName) so the next page loads
+      // cleanly — partial clears used to leave a zombie `user` cached.
+      clearAuth();
       window.location.href = "/user-login";
     } catch (e) {
       alert("❌ " + (e.message || "فشل التغيير"));
@@ -2197,3 +2272,235 @@ function AdminPasswordCard() {
     </div>
   );
 }
+
+/* ════════════════════ إدارة الكوبونات (داخل الإعدادات) ════════════════════ */
+const emptyCouponForm = { code: "", type: "percent", value: "", minOrder: "", maxUses: "", expiry: "" };
+
+function CouponsManager() {
+  const { coupons, loading, refresh } = useCoupons();
+  const [form, setForm]       = useState(emptyCouponForm);
+  const [editing, setEditing] = useState(null);
+  const [saving, setSaving]   = useState(false);
+  const [showForm, setShowForm] = useState(false);
+
+  const setF = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const save = async () => {
+    if (!form.code.trim() || !form.value) return alert("يرجى تعبئة الرمز والقيمة");
+    const code = form.code.trim().toUpperCase();
+    const dup = coupons.find((c) => c.code === code && c.code !== editing);
+    if (dup) return alert("هذا الرمز موجود مسبقاً");
+
+    try {
+      setSaving(true);
+      if (editing) {
+        await saveCoupon({
+          ...coupons.find((c) => c.code === editing),
+          code, type: form.type, value: Number(form.value),
+          minOrder: Number(form.minOrder) || 0,
+          maxUses: Number(form.maxUses) || 999,
+          expiry: form.expiry || null,
+        });
+      } else {
+        await saveCoupon({
+          code, type: form.type, value: Number(form.value),
+          minOrder: Number(form.minOrder) || 0,
+          maxUses: Number(form.maxUses) || 999,
+          uses: 0, expiry: form.expiry || null,
+          active: true, createdAt: new Date().toISOString(),
+        });
+      }
+      setForm(emptyCouponForm);
+      setEditing(null);
+      setShowForm(false);
+      await refresh();
+    } catch (e) {
+      alert("❌ فشل الحفظ: " + (e.message || ""));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleActive = async (code) => {
+    const c = coupons.find((x) => x.code === code);
+    if (!c) return;
+    try { await updateCoupon(code, { active: !c.active }); await refresh(); }
+    catch { alert("❌ فشل التحديث"); }
+  };
+
+  const remove = async (code) => {
+    if (!window.confirm(`حذف كوبون ${code}؟`)) return;
+    try { await deleteCoupon(code); await refresh(); }
+    catch { alert("❌ فشل الحذف"); }
+  };
+
+  const startEdit = (c) => {
+    setEditing(c.code);
+    setForm({
+      code: c.code, type: c.type, value: String(c.value),
+      minOrder: String(c.minOrder || ""), maxUses: String(c.maxUses || ""),
+      expiry: c.expiry || "",
+    });
+    setShowForm(true);
+  };
+
+  const cancelEdit = () => { setEditing(null); setForm(emptyCouponForm); setShowForm(false); };
+
+  const isExpired   = (c) => c.expiry && new Date(c.expiry) < new Date();
+  const isExhausted = (c) => c.uses >= c.maxUses;
+
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      {/* Add / Edit toggle button (only when form is closed) */}
+      {!showForm && (
+        <button
+          onClick={() => { setShowForm(true); setEditing(null); setForm(emptyCouponForm); }}
+          style={{
+            background: "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff",
+            border: "none", borderRadius: 10, padding: "10px 16px",
+            fontWeight: 700, fontSize: 13, cursor: "pointer",
+            fontFamily: "'Tajawal',sans-serif",
+            boxShadow: "0 4px 12px rgba(99,102,241,.25)",
+            display: "inline-flex", alignItems: "center", gap: 8, alignSelf: "flex-start",
+          }}
+        >➕ إنشاء كوبون جديد</button>
+      )}
+
+      {/* Form */}
+      {showForm && (
+        <div style={{ background: "#FAFBFC", border: "1px solid #EEF0F4", borderRadius: 12, padding: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "#0F172A", marginBottom: 12 }}>
+            {editing ? `تعديل كوبون: ${editing}` : "كوبون جديد"}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 12 }}>
+            <div>
+              <label style={lbl}>رمز الكوبون</label>
+              <input value={form.code} onChange={setF("code")} placeholder="SAVE20"
+                style={{ ...inputBase, textTransform: "uppercase", fontFamily: "monospace" }}
+                onFocus={focusIn} onBlur={focusOut} />
+            </div>
+            <div>
+              <label style={lbl}>نوع الخصم</label>
+              <select value={form.type} onChange={setF("type")}
+                style={{ ...inputBase, cursor: "pointer" }}
+                onFocus={focusIn} onBlur={focusOut}>
+                <option value="percent">نسبة مئوية (%)</option>
+                <option value="fixed">مبلغ ثابت (AED)</option>
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>{form.type === "percent" ? "النسبة (%)" : "المبلغ (AED)"}</label>
+              <input type="number" value={form.value} onChange={setF("value")}
+                placeholder={form.type === "percent" ? "20" : "50"}
+                min="1" max={form.type === "percent" ? "100" : undefined}
+                style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+            </div>
+            <div>
+              <label style={lbl}>الحد الأدنى للطلب</label>
+              <input type="number" value={form.minOrder} onChange={setF("minOrder")}
+                placeholder="0 = بدون حد" min="0"
+                style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+            </div>
+            <div>
+              <label style={lbl}>الحد الأقصى للاستخدام</label>
+              <input type="number" value={form.maxUses} onChange={setF("maxUses")}
+                placeholder="فارغ = غير محدود" min="1"
+                style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+            </div>
+            <div>
+              <label style={lbl}>تاريخ الانتهاء</label>
+              <input type="date" value={form.expiry} onChange={setF("expiry")}
+                style={inputBase} onFocus={focusIn} onBlur={focusOut} />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            <button onClick={save} disabled={saving}
+              style={{ ...btnPrimary, padding: "10px 18px", fontSize: 13, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
+              {saving ? "جاري الحفظ..." : (editing ? "💾 حفظ التعديل" : "✅ إنشاء")}
+            </button>
+            <button onClick={cancelEdit}
+              style={{ background: "#fff", color: "#64748B", border: "1px solid #E2E8F0", borderRadius: 10, padding: "10px 16px", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* List */}
+      <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+            الكوبونات الحالية
+            <span style={{ marginInlineStart: 8, color: "#94A3B8", fontWeight: 600 }}>({coupons.length})</span>
+          </span>
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: "center", padding: 20, color: "#94A3B8", fontSize: 13 }}>جاري التحميل...</div>
+        ) : coupons.length === 0 ? (
+          <div style={{
+            textAlign: "center", padding: 28, color: "#94A3B8",
+            background: "#FAFBFC", borderRadius: 10, border: "1px dashed #EEF0F4", fontSize: 13,
+          }}>
+            🎟️ لا توجد كوبونات بعد. أنشئ أول كوبون من الزر بالأعلى.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: 6 }}>
+            {coupons.map((c) => {
+              const expired   = isExpired(c);
+              const exhausted = isExhausted(c);
+              const status    = !c.active ? "غير نشط" : expired ? "منتهي" : exhausted ? "استُنفذ" : "نشط";
+              const statusCol = !c.active ? "#94A3B8" : expired ? "#EF4444" : exhausted ? "#F59E0B" : "#10B981";
+              const statusBg  = !c.active ? "#F1F5F9" : expired ? "#FEF2F2" : exhausted ? "#FFFBEB" : "#ECFDF5";
+              const dim = !c.active || expired || exhausted;
+              return (
+                <div key={c.code} style={{
+                  border: "1px solid #EEF0F4", borderRadius: 10,
+                  padding: "10px 12px",
+                  display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+                  background: dim ? "#FAFBFC" : "#fff", opacity: dim ? 0.85 : 1,
+                }}>
+                  <div style={{
+                    background: "#EEF2FF", color: "#6366F1",
+                    borderRadius: 7, padding: "5px 10px",
+                    fontWeight: 800, fontSize: 13, letterSpacing: 0.5,
+                    fontFamily: "monospace",
+                  }}>{c.code}</div>
+                  <div style={{ flex: 1, minWidth: 140 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "#0F172A" }}>
+                      {c.type === "percent" ? `${c.value}%` : `${fmt(c.value)}`} خصم
+                      {c.minOrder > 0 && <span style={{ color: "#94A3B8", fontWeight: 500, fontSize: 11, marginInlineStart: 8 }}>• حد أدنى {fmt(c.minOrder)}</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>
+                      الاستخدام: {c.uses || 0}/{c.maxUses >= 999 ? "∞" : c.maxUses}
+                      {c.expiry && <span style={{ marginInlineStart: 8 }}>• ينتهي {new Date(c.expiry).toLocaleDateString("ar-EG")}</span>}
+                    </div>
+                  </div>
+                  <span style={{
+                    background: statusBg, color: statusCol, borderRadius: 6,
+                    padding: "2px 9px", fontSize: 11, fontWeight: 700,
+                  }}>{status}</span>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <button onClick={() => toggleActive(c.code)} title={c.active ? "تعطيل" : "تفعيل"}
+                      style={miniBtn(c.active ? "#FFFBEB" : "#ECFDF5", c.active ? "#B45309" : "#059669")}>
+                      {c.active ? "⏸" : "▶"}
+                    </button>
+                    <button onClick={() => startEdit(c)} title="تعديل" style={miniBtn("#EEF2FF", "#6366F1")}>✏️</button>
+                    <button onClick={() => remove(c.code)} title="حذف" style={miniBtn("#FEF2F2", "#EF4444")}>🗑</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const miniBtn = (bg, color) => ({
+  width: 28, height: 28, borderRadius: 7,
+  background: bg, color, border: "none",
+  display: "inline-flex", alignItems: "center", justifyContent: "center",
+  cursor: "pointer", fontSize: 12, fontFamily: "'Tajawal',sans-serif",
+});

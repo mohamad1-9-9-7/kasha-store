@@ -115,8 +115,39 @@ router.post("/", createOrderLimiter, async (req, res) => {
       } catch { /* invalid token → treat as guest */ }
     }
 
-    const id = req.body.id || uuidv4();
-    const customer = { ...(req.body.customer || {}) };
+    // Always generate the order id server-side. Trusting client input here let
+    // an attacker pick predictable / colliding ids (a real PRIMARY KEY collision
+    // is rejected, but a unique id like "ADMIN-2024" or another customer's
+    // order number could surface in receipts/emails and confuse support).
+    const id = uuidv4();
+    // Whitelist customer fields — guests submit arbitrary JSON otherwise,
+    // and unrelated keys would persist into the order row forever.
+    const c = req.body.customer || {};
+    const customer = {
+      name:      String(c.name      || "").slice(0, 100).trim(),
+      phone:     String(c.phone     || "").slice(0, 20).trim(),
+      email:     c.email ? String(c.email).slice(0, 254).trim() : "",
+      city:      String(c.city      || "").slice(0, 100).trim(),
+      cityLabel: String(c.cityLabel || "").slice(0, 100).trim(),
+      address:   String(c.address   || "").slice(0, 300).trim(),
+      note:      c.note    ? String(c.note).slice(0, 500).trim() : "",
+      notes:     c.notes   ? String(c.notes).slice(0, 500).trim() : "",
+    };
+    // Optional GPS pin — admin uses this to navigate to the customer.
+    // Validate strictly: lat/lng must parse as finite numbers in valid ranges,
+    // otherwise drop the field entirely (don't persist garbage).
+    if (c.location && typeof c.location === "object") {
+      const lat = Number(c.location.lat);
+      const lng = Number(c.location.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng) &&
+          lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        customer.location = {
+          lat,
+          lng,
+          mapLink: c.location.mapLink ? String(c.location.mapLink).slice(0, 500) : "",
+        };
+      }
+    }
 
     // Logged-in non-admin users must use their own phone; guests can set their own
     if (user && user.role !== "admin") {
@@ -625,7 +656,11 @@ async function reapplyAccountingForOrder(client, order) {
 }
 
 // PUT update order status (admin) — whitelist allowed fields + auto-restore stock
-const ORDER_UPDATABLE = ["status", "note", "trackingNumber", "paymentStatus"];
+// Allowed payment.status transitions — gated to known values so an admin click
+// can't accidentally write garbage that breaks downstream filters/reports.
+const ORDER_UPDATABLE = ["status", "note", "trackingNumber"];
+const ORDER_STATUS_WHITELIST = new Set(["NEW", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELED", "REFUNDED"]);
+const PAYMENT_STATUS_WHITELIST = new Set(["COD_PENDING", "BANK_PENDING", "PAID", "REFUNDED", "FAILED"]);
 router.put("/:id", requireAdmin, async (req, res) => {
   const client = await pool.connect();
   try {
@@ -637,8 +672,25 @@ router.put("/:id", requireAdmin, async (req, res) => {
     for (const k of ORDER_UPDATABLE) {
       if (k in req.body) patch[k] = req.body[k];
     }
+    // Validate status against whitelist (don't accept arbitrary strings)
+    if ("status" in patch && !ORDER_STATUS_WHITELIST.has(patch.status)) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "حالة الطلب غير صالحة" });
+    }
+    // paymentStatus lives inside `payment.status`, not at the top level.
+    // Apply it as a nested merge so admins can update it without nuking
+    // the rest of the payment object (transferRef, method).
+    let paymentPatch = null;
+    if ("paymentStatus" in req.body) {
+      const ps = String(req.body.paymentStatus || "");
+      if (!PAYMENT_STATUS_WHITELIST.has(ps)) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "حالة الدفع غير صالحة" });
+      }
+      paymentPatch = { ...(row.data.payment || {}), status: ps };
+    }
 
-    let updated = { ...row.data, ...patch };
+    let updated = { ...row.data, ...patch, ...(paymentPatch ? { payment: paymentPatch } : {}) };
 
     // 📦 إدارة المخزون + المحاسبة (الكوبون والنقاط) حسب تغيير الحالة
     const oldStatus = row.data.status;

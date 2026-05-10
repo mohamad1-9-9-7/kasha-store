@@ -98,7 +98,11 @@ export default function ProductDetails() {
     setProduct(found);
     setActiveImg(0);
     setImgLoaded(false);
-    // Open Graph meta tags — use custom metaTitle/metaDescription if set
+    // Open Graph meta tags — use custom metaTitle/metaDescription if set.
+    // Track previous values so the cleanup restores them, otherwise the
+    // product's OG tags leak into every other page after navigation and
+    // social-unfurlers see stale data on the homepage / cart / etc.
+    const restoreOps = [];
     if (found) {
       const displayName = prodName(found);
       const metaTitle = (found.metaTitle || "").trim() || `${displayName} — كشخة`;
@@ -106,12 +110,24 @@ export default function ProductDetails() {
         || prodDesc(found)
         || `${displayName} — ${fmtPrice(found.price)} درهم`;
 
+      const prevTitle = document.title;
       document.title = metaTitle;
+      restoreOps.push(() => { document.title = prevTitle; });
+
       const setMeta = (prop, val, isName) => {
         const sel = isName ? `meta[name="${prop}"]` : `meta[property="${prop}"]`;
         let el = document.querySelector(sel);
-        if (!el) { el = document.createElement("meta"); el[isName ? "name" : "property"] = prop; document.head.appendChild(el); }
-        el.content = val;
+        if (el) {
+          const prev = el.content;
+          el.content = val;
+          restoreOps.push(() => { el.content = prev; });
+        } else {
+          el = document.createElement("meta");
+          el[isName ? "name" : "property"] = prop;
+          el.content = val;
+          document.head.appendChild(el);
+          restoreOps.push(() => { el.remove(); });
+        }
       };
       const url = window.location.href;
       setMeta("og:title", metaTitle);
@@ -124,7 +140,7 @@ export default function ProductDetails() {
       setMeta("twitter:image", found.image || "");
       setMeta("description", metaDesc, true);
     }
-    return () => { document.title = "كشخة"; };
+    return () => { restoreOps.forEach((fn) => { try { fn(); } catch {} }); };
   }, [id, allProds]);
 
   /* تغيير عدد المشاهدين كل 30 ثانية */

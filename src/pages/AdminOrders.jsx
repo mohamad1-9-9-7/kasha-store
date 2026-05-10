@@ -4,6 +4,11 @@ import { apiFetch } from "../api";
 import { shadow, r, fmt } from "../Theme";
 import { printWaybill } from "../utils/waybill";
 import { useSettings } from "../hooks/useSettings";
+import AdminLayout, { Card, Stat, ADMIN } from "../components/AdminLayout";
+import {
+  IconReceipt, IconWallet, IconAlert, IconDownload, IconTrash,
+  IconChevDown, IconTruck, IconClose, IconCheckCircle,
+} from "../components/Icons";
 
 const STATUSES = [
   { val: "NEW",        label: "جديد",          bg: "#EEF2FF", col: "#6366F1" },
@@ -12,12 +17,6 @@ const STATUSES = [
   { val: "DELIVERED",  label: "تم التسليم",     bg: "#ECFDF5", col: "#10B981" },
   { val: "CANCELED",   label: "ملغي",           bg: "#FEF2F2", col: "#EF4444" },
 ];
-
-const shimmer = {
-  background: "linear-gradient(90deg,#6366F1,#8B5CF6,#EC4899,#6366F1)",
-  backgroundSize: "300% auto", WebkitBackgroundClip: "text", backgroundClip: "text",
-  color: "transparent", animation: "shimmer 4s linear infinite",
-};
 
 const fmtDate = (ts) => { try { const d = ts?.toDate ? ts.toDate() : new Date(ts); return d.toLocaleString("ar-EG"); } catch { return ""; } };
 
@@ -37,10 +36,34 @@ export default function AdminOrders() {
   }, []);
 
   const updateStatus = async (docId, status) => {
+    // Optimistic update + rollback. Keep the previous status so we can undo if
+    // the server rejects (whitelist mismatch, transition error, lost network).
+    let previousStatus = null;
+    setOrders(prev => prev.map(o => {
+      if (o.docId === docId) { previousStatus = o.status; return { ...o, status }; }
+      return o;
+    }));
     try {
       await apiFetch(`/api/orders/${docId}`, { method: "PUT", body: { status } });
-      setOrders(prev => prev.map(o => o.docId === docId ? { ...o, status } : o));
-    } catch { alert("❌ خطأ"); }
+    } catch (e) {
+      // Roll back so the UI reflects reality.
+      setOrders(prev => prev.map(o => o.docId === docId ? { ...o, status: previousStatus } : o));
+      alert("❌ فشل تحديث الحالة: " + (e?.message || ""));
+    }
+  };
+
+  const updatePaymentStatus = async (docId, paymentStatus) => {
+    let previousPayment = null;
+    setOrders(prev => prev.map(o => {
+      if (o.docId === docId) { previousPayment = o.payment; return { ...o, payment: { ...(o.payment || {}), status: paymentStatus } }; }
+      return o;
+    }));
+    try {
+      await apiFetch(`/api/orders/${docId}`, { method: "PUT", body: { paymentStatus } });
+    } catch (e) {
+      setOrders(prev => prev.map(o => o.docId === docId ? { ...o, payment: previousPayment } : o));
+      alert("❌ فشل تحديث حالة الدفع: " + (e?.message || ""));
+    }
   };
   const deleteOrder = async (docId) => {
     if (!window.confirm("حذف هذا الطلب؟")) return;
@@ -89,109 +112,107 @@ export default function AdminOrders() {
   }), [orders]);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'Tajawal',sans-serif", direction: "rtl" }}>
-      <style>{`
-        @keyframes shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
-        @media(max-width:768px){
-          .ao-stats { grid-template-columns: 1fr !important; }
-          .ao-filter { flex-direction: column !important; align-items: stretch !important; }
-          .ao-filter input { width: 100% !important; }
-          .ao-order-head { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
-          .ao-order-total { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
-        }
-        @media(max-width:480px){
-          .ao-stats { grid-template-columns: 1fr 1fr !important; }
-        }
-      `}</style>
-
-      {/* ناف */}
-      <nav style={{ background: "#0F172A", borderBottom: "1px solid rgba(255,255,255,.08)", padding: "0 24px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 400 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={() => navigate(-1)} style={{ background: "rgba(255,255,255,.08)", color: "rgba(255,255,255,.8)", border: "1.5px solid rgba(255,255,255,.12)", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>← رجوع</button>
-          <span style={{ fontSize: 18, fontWeight: 900 }}><span style={{ color: "#fff" }}>📦 </span><span style={shimmer}>الطلبات</span></span>
-          {!loading && <span style={{ background: "#ECFDF5", color: "#10B981", borderRadius: 999, padding: "3px 12px", fontSize: 12, fontWeight: 700 }}>{orders.length} طلب</span>}
-        </div>
-        <Link to="/admin-dashboard" style={{ background: "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", borderRadius: 10, padding: "8px 16px", fontWeight: 700, fontSize: 13, boxShadow: "0 4px 12px rgba(99,102,241,.4)" }}>← لوحة التحكم</Link>
-      </nav>
-
-      <main style={{ maxWidth: 1100, margin: "24px auto", padding: "0 20px", display: "grid", gap: 20 }}>
+    <AdminLayout
+      title="الطلبات"
+      subtitle={`${orders.length} طلب · ${stats.newOrders} جديد`}
+      search={search}
+      onSearch={setSearch}
+      badges={{ newOrders: stats.newOrders }}
+    >
 
         {/* إحصاءات */}
-        <div className="ao-stats" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
-          {[
-            { label: "إجمالي الطلبات", val: stats.total,             col: "#6366F1", bg: "#EEF2FF", icon: "📦" },
-            { label: "طلبات جديدة",    val: stats.newOrders,         col: "#EC4899", bg: "#FDF2F8", icon: "🔴" },
-            { label: "إيرادات مسلّمة", val: fmt(stats.revenue),      col: "#10B981", bg: "#ECFDF5", icon: "💰" },
-          ].map((s, i) => (
-            <div key={i} style={{ background: "#fff", borderRadius: 18, border: "1px solid #F1F5F9", boxShadow: shadow.sm, padding: "20px", borderTop: `3px solid ${s.col}`, animation: `fadeUp .4s ${i * .08}s both` }}>
-              <div style={{ fontSize: 20, marginBottom: 6 }}>{s.icon}</div>
-              <div style={{ color: "#64748B", fontSize: 13, marginBottom: 4 }}>{s.label}</div>
-              <div style={{ fontWeight: 900, fontSize: 26, color: s.col }}>{s.val}</div>
-            </div>
-          ))}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 16 }}>
+          <Stat icon={IconReceipt} tone="default" label="إجمالي الطلبات" value={stats.total} />
+          <Stat icon={IconAlert}   tone="pink"    label="طلبات جديدة"   value={stats.newOrders} />
+          <Stat icon={IconWallet}  tone="success" label="إيرادات مسلّمة" value={fmt(stats.revenue)} />
         </div>
 
         {/* فلاتر */}
-        <div className="ao-filter" style={{ background: "#fff", borderRadius: 16, border: "1px solid #F1F5F9", boxShadow: shadow.sm, padding: "16px 20px", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 220, position: "relative" }}>
-            <input placeholder="🔍 بحث بالاسم أو الهاتف أو رقم الطلب" value={search} onChange={e => setSearch(e.target.value)}
-              style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 14, outline: "none", fontFamily: "'Tajawal',sans-serif", background: "#F8FAFC", boxSizing: "border-box" }}
-              onFocus={e => { e.target.style.borderColor = "#6366F1"; e.target.style.boxShadow = "0 0 0 3px rgba(99,102,241,.1)"; }}
-              onBlur={e => { e.target.style.borderColor = "#E2E8F0"; e.target.style.boxShadow = "none"; }} />
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {[{ val: "", label: "الكل" }, ...STATUSES].map(s => (
-              <button key={s.val} onClick={() => setStatusFilter(s.val)}
-                style={{ padding: "8px 14px", borderRadius: 999, fontWeight: 700, fontSize: 13, cursor: "pointer", border: statusFilter === s.val ? "none" : "1.5px solid #E2E8F0", background: statusFilter === s.val ? "linear-gradient(135deg,#6366F1,#8B5CF6)" : "#fff", color: statusFilter === s.val ? "#fff" : "#64748B", fontFamily: "'Tajawal',sans-serif", transition: "all .15s" }}>
-                {s.label}
-              </button>
-            ))}
+        <Card style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "12px 16px", marginBottom: 14 }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {[{ val: "", label: "الكل" }, ...STATUSES].map(s => {
+              const active = statusFilter === s.val;
+              return (
+                <button key={s.val} onClick={() => setStatusFilter(s.val)}
+                  style={{
+                    padding: "6px 12px", borderRadius: 8, fontWeight: 600, fontSize: 12,
+                    cursor: "pointer", border: "none",
+                    background: active ? "linear-gradient(135deg,#6366F1,#8B5CF6)" : "#FAFBFC",
+                    color: active ? "#fff" : ADMIN.textMuted,
+                    fontFamily: "'Tajawal',sans-serif",
+                    boxShadow: active ? "0 4px 10px rgba(99,102,241,.25)" : "none",
+                  }}>
+                  {s.label}
+                </button>
+              );
+            })}
           </div>
           <button onClick={exportCSV} disabled={filtered.length === 0}
-            style={{ padding: "9px 16px", borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: filtered.length ? "pointer" : "not-allowed", background: "#ECFDF5", color: "#10B981", border: "1.5px solid #A7F3D0", fontFamily: "'Tajawal',sans-serif", opacity: filtered.length ? 1 : .5, flexShrink: 0 }}>
-            📥 تصدير CSV
+            style={{
+              padding: "7px 12px", borderRadius: 8, fontWeight: 600, fontSize: 12,
+              cursor: filtered.length ? "pointer" : "not-allowed",
+              background: "#ECFDF5", color: "#10B981", border: "1px solid #A7F3D0",
+              fontFamily: "'Tajawal',sans-serif", opacity: filtered.length ? 1 : .5,
+              marginInlineStart: "auto",
+              display: "inline-flex", alignItems: "center", gap: 6,
+            }}>
+            <IconDownload size={13} /> تصدير CSV
           </button>
-        </div>
+        </Card>
 
         {/* الطلبات */}
         {loading ? (
-          <div style={{ textAlign: "center", padding: 60, color: "#94A3B8", background: "#fff", borderRadius: 20 }}>⏳ جاري التحميل...</div>
+          <Card><div style={{ textAlign: "center", padding: 24, color: ADMIN.textMuted, fontSize: 13 }}>جاري التحميل...</div></Card>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 60, background: "#fff", borderRadius: 20, border: "2px dashed #E2E8F0", color: "#94A3B8" }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
-            لا توجد طلبات {search || statusFilter ? "مطابقة" : "بعد"}
-          </div>
+          <Card>
+            <div style={{ textAlign: "center", padding: 36, color: ADMIN.textSubtle }}>
+              <IconReceipt size={36} style={{ color: ADMIN.textSubtle, marginBottom: 10 }} />
+              <div style={{ fontSize: 14, fontWeight: 600 }}>لا توجد طلبات {search || statusFilter ? "مطابقة" : "بعد"}</div>
+            </div>
+          </Card>
         ) : (
-          <div style={{ display: "grid", gap: 12 }}>
+          <div style={{ display: "grid", gap: 10 }}>
             {filtered.map((o, idx) => {
               const st = STATUSES.find(s => s.val === o.status) || STATUSES[0];
               const isOpen = expanded === o.docId;
               return (
-                <div key={o.docId} style={{ background: "#fff", borderRadius: 18, border: "1px solid #F1F5F9", boxShadow: shadow.sm, overflow: "hidden", borderRight: `4px solid ${st.col}`, animation: `fadeUp .35s ${idx * 0.03}s both` }}>
+                <Card key={o.docId} padded={false} style={{ overflow: "hidden", borderInlineStart: `3px solid ${st.col}` }}>
 
                   {/* رأس الطلب */}
-                  <div style={{ padding: "18px 20px", display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center" }}>
+                  <div style={{ padding: "14px 18px", display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center" }}>
                     <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-                        <span style={{ fontWeight: 800, fontSize: 14, color: "#0F172A" }}>{o.id}</span>
-                        <span style={{ background: st.bg, color: st.col, borderRadius: 999, padding: "3px 12px", fontSize: 12, fontWeight: 700 }}>{st.label}</span>
-                        <span style={{ background: o.payment?.method === "cash" ? "#FFFBEB" : "#EFF6FF", color: o.payment?.method === "cash" ? "#B45309" : "#6366F1", borderRadius: 999, padding: "3px 12px", fontSize: 12, fontWeight: 700 }}>
-                          {o.payment?.method === "cash" ? "💵 كاش" : "🏦 تحويل"}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 700, fontSize: 13, color: ADMIN.text, fontFamily: "monospace" }}>{String(o.id || "").slice(0, 12)}</span>
+                        <span style={{ background: st.bg, color: st.col, borderRadius: 6, padding: "2px 10px", fontSize: 11, fontWeight: 700 }}>{st.label}</span>
+                        <span style={{
+                          background: o.payment?.method === "cash" ? "#FFFBEB" : "#EFF6FF",
+                          color: o.payment?.method === "cash" ? "#B45309" : ADMIN.accent,
+                          borderRadius: 6, padding: "2px 10px", fontSize: 11, fontWeight: 600,
+                        }}>
+                          {o.payment?.method === "cash" ? "كاش" : "تحويل"}
                         </span>
-                        <span style={{ fontSize: 12, color: "#94A3B8" }}>{fmtDate(o.createdAt)}</span>
+                        <span style={{ fontSize: 11, color: ADMIN.textSubtle }}>{fmtDate(o.createdAt)}</span>
                       </div>
-                      <div style={{ fontSize: 14, color: "#64748B" }}>
-                        👤 {o.customer?.name} — 📞 {o.customer?.phone} — 📍 {o.customer?.cityLabel || o.customer?.city}
+                      <div style={{ fontSize: 13, color: ADMIN.textMuted }}>
+                        <span style={{ fontWeight: 600, color: ADMIN.text }}>{o.customer?.name}</span>
+                        <span style={{ margin: "0 8px", color: ADMIN.textSubtle }}>·</span>
+                        <span dir="ltr" style={{ fontFamily: "monospace" }}>{o.customer?.phone}</span>
+                        <span style={{ margin: "0 8px", color: ADMIN.textSubtle }}>·</span>
+                        <span>{o.customer?.cityLabel || o.customer?.city}</span>
                       </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontWeight: 900, fontSize: 18, color: "#6366F1" }}>{fmt(o.totals?.grandTotal || 0)}</span>
+                      <span style={{ fontWeight: 800, fontSize: 16, color: ADMIN.text }}>{fmt(o.totals?.grandTotal || 0)}</span>
                       <button onClick={() => setExpanded(isOpen ? null : o.docId)}
-                        style={{ background: "#EEF2FF", color: "#6366F1", border: "none", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif", transition: "background .15s" }}
-                        onMouseOver={e => e.currentTarget.style.background = "#E0E7FF"}
-                        onMouseOut={e => e.currentTarget.style.background = "#EEF2FF"}>
-                        {isOpen ? "إخفاء ▲" : "تفاصيل ▼"}
+                        style={{
+                          background: "#FAFBFC", color: ADMIN.textMuted,
+                          border: `1px solid ${ADMIN.border}`, borderRadius: 8,
+                          padding: "6px 12px", fontWeight: 600, fontSize: 12, cursor: "pointer",
+                          fontFamily: "'Tajawal',sans-serif",
+                          display: "inline-flex", alignItems: "center", gap: 6,
+                        }}>
+                        تفاصيل
+                        <IconChevDown size={13} style={{ transform: isOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
                       </button>
                     </div>
                   </div>
@@ -264,33 +285,65 @@ export default function AdminOrders() {
                         )}
                       </div>
 
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                        <span style={{ fontWeight: 700, fontSize: 14, color: "#334155" }}>تغيير الحالة:</span>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                        <span style={{ fontWeight: 600, fontSize: 12, color: ADMIN.textMuted, marginInlineEnd: 4 }}>الحالة:</span>
                         {STATUSES.map(s => (
                           <button key={s.val} onClick={() => updateStatus(o.docId, s.val)}
-                            style={{ padding: "7px 14px", borderRadius: 999, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "none", background: o.status === s.val ? s.col : s.bg, color: o.status === s.val ? "#fff" : s.col, fontFamily: "'Tajawal',sans-serif", transition: "opacity .15s" }}
-                            onMouseOver={e => e.currentTarget.style.opacity = ".8"}
-                            onMouseOut={e => e.currentTarget.style.opacity = "1"}>
+                            style={{
+                              padding: "5px 11px", borderRadius: 6, fontWeight: 600, fontSize: 11,
+                              cursor: "pointer", border: "none",
+                              background: o.status === s.val ? s.col : s.bg,
+                              color: o.status === s.val ? "#fff" : s.col,
+                              fontFamily: "'Tajawal',sans-serif",
+                            }}>
                             {s.label}
                           </button>
                         ))}
+                        {/* Payment status — particularly for bank transfer orders so admin
+                            can mark a confirmed transfer as PAID without DB editing. */}
+                        <span style={{ fontWeight: 600, fontSize: 12, color: ADMIN.textMuted, marginInlineStart: 8, marginInlineEnd: 4 }}>الدفع:</span>
+                        <select
+                          value={o.payment?.status || ""}
+                          onChange={(e) => updatePaymentStatus(o.docId, e.target.value)}
+                          style={{
+                            padding: "5px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                            border: `1px solid ${ADMIN.border}`, background: "#fff",
+                            color: ADMIN.text, fontFamily: "'Tajawal',sans-serif", cursor: "pointer",
+                          }}
+                        >
+                          <option value="COD_PENDING">بانتظار الدفع (كاش)</option>
+                          <option value="BANK_PENDING">بانتظار التحويل</option>
+                          <option value="PAID">مدفوع</option>
+                          <option value="REFUNDED">مُستردّ</option>
+                          <option value="FAILED">فشل</option>
+                        </select>
                         <button onClick={() => printWaybill(o, storeSettings)}
-                          style={{ background: "#EEF2FF", color: "#6366F1", border: "1.5px solid #C7D2FE", borderRadius: 10, padding: "7px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
-                          📦 بوليصة شحن
+                          style={{
+                            background: ADMIN.accentBg, color: ADMIN.accent, border: "none", borderRadius: 6,
+                            padding: "5px 11px", fontWeight: 600, fontSize: 11, cursor: "pointer",
+                            fontFamily: "'Tajawal',sans-serif",
+                            display: "inline-flex", alignItems: "center", gap: 4,
+                          }}>
+                          <IconTruck size={12} /> بوليصة شحن
                         </button>
                         <button onClick={() => deleteOrder(o.docId)}
-                          style={{ marginRight: "auto", background: "#FEF2F2", color: "#EF4444", border: "1.5px solid #FECACA", borderRadius: 10, padding: "7px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Tajawal',sans-serif" }}>
-                          🗑️ حذف
+                          style={{
+                            marginInlineStart: "auto",
+                            background: "#FEF2F2", color: "#EF4444", border: "none", borderRadius: 6,
+                            padding: "5px 11px", fontWeight: 600, fontSize: 11, cursor: "pointer",
+                            fontFamily: "'Tajawal',sans-serif",
+                            display: "inline-flex", alignItems: "center", gap: 4,
+                          }}>
+                          <IconTrash size={12} /> حذف
                         </button>
                       </div>
                     </div>
                   )}
-                </div>
+                </Card>
               );
             })}
           </div>
         )}
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

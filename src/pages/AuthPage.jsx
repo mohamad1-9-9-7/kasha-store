@@ -71,7 +71,9 @@ export default function AuthPage({ mode: initialMode = "login" }) {
     const phone = rForm.phone.replace(/\s/g, "");
     if (!phone || !rForm.name.trim() || !rForm.address.trim()) return setError(t("err_fill_all"));
     if (!/^05\d{8}$/.test(phone)) return setError(t("err_phone_format"));
-    if (rForm.password.length < 4) return setError(t("err_pass_short"));
+    // Backend register requires 6+ chars (auth.js:70). Keep the FE gate in sync
+    // so users don't pass client validation only to be rejected by the server.
+    if (rForm.password.length < 6) return setError(t("err_pass_short"));
     if (rForm.password !== rForm.confirmPassword) return setError(t("err_pass_mismatch"));
     setLoading(true);
     try {

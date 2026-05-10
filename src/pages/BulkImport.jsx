@@ -8,8 +8,9 @@ import { uploadToCloudinary, isConfigured as cloudinaryReady } from "../utils/cl
 import { apiFetch } from "../api";
 import { useToast } from "../context/ToastContext";
 import { useCategories } from "../hooks/useCategories";
+import AdminLayout from "../components/AdminLayout";
 
-const CARD = { background: "#fff", borderRadius: 20, border: "1px solid #F1F5F9", boxShadow: shadow.md, padding: "24px" };
+const CARD = { background: "#fff", borderRadius: 14, border: "1px solid #F1F5F9", boxShadow: "0 1px 2px rgba(15,23,42,.04)", padding: "20px" };
 
 const HEADERS = [
   "name", "nameEn", "price", "oldPrice", "costPrice", "priceWithoutTax", "category", "brand",
@@ -183,15 +184,8 @@ export default function BulkImport() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'Tajawal',sans-serif", direction: "rtl" }}>
-      <nav style={{ background: "#0F172A", borderBottom: "1px solid rgba(255,255,255,.08)", padding: "0 24px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 400 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <Link to="/admin-dashboard" style={{ background: "rgba(255,255,255,.08)", color: "rgba(255,255,255,.8)", border: "1.5px solid rgba(255,255,255,.12)", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13 }}>← رجوع</Link>
-          <span style={{ fontSize: 18, fontWeight: 900, color: "#fff" }}>📥 استيراد منتجات جماعي</span>
-        </div>
-      </nav>
-
-      <main style={{ maxWidth: 1000, margin: "28px auto", padding: "0 20px", display: "grid", gap: 22 }}>
+    <AdminLayout title="استيراد منتجات جماعي" subtitle="ارفع ملف CSV أو Excel ليتم استيراد منتجاتك دفعة واحدة">
+      <div style={{ maxWidth: 1100, display: "grid", gap: 16 }}>
 
         <div style={CARD}>
           <h2 style={{ fontSize: 17, fontWeight: 800, color: "#0F172A", marginBottom: 8 }}>📥 استيراد منتجات (CSV / Excel)</h2>
@@ -222,7 +216,7 @@ export default function BulkImport() {
             {existingCatNames.length === 0 ? (
               <>
                 <div style={{ fontSize: 12, color: "#B45309", marginBottom: 6 }}>
-                  ما في أقسام محفوظة. <Link to="/manage-categories" style={{ color: "#B45309", fontWeight: 800, textDecoration: "underline" }}>روح أضف قسم أولاً</Link>.
+                  ما في أقسام محفوظة. <Link to="/admin-dashboard?tab=cats" style={{ color: "#B45309", fontWeight: 800, textDecoration: "underline" }}>روح أضف قسم أولاً</Link>.
                 </div>
               </>
             ) : (
@@ -382,7 +376,7 @@ export default function BulkImport() {
             <li>إذا كان هناك منتج بنفس <b>sku</b> فسيتم تحديثه بدل إضافته</li>
           </ul>
         </div>
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 }

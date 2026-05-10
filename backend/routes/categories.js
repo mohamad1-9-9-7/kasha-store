@@ -14,12 +14,13 @@ router.get("/", async (req, res) => {
   }
 });
 
-// POST create category (admin)
+// POST create category (admin) — server always assigns a fresh UUID.
+// Spread `req.body` first so any client-supplied `id` is overwritten by ours.
 router.post("/", requireAdmin, async (req, res) => {
   try {
     if (!req.body?.name) return res.status(400).json({ error: "اسم القسم مطلوب" });
     const id = uuidv4();
-    const cat = { id, ...req.body };
+    const cat = { ...req.body, id };
     await pool.query("INSERT INTO categories (id, data) VALUES ($1, $2)", [id, cat]);
     res.json(cat);
   } catch (e) {

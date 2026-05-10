@@ -5,12 +5,7 @@ import { uploadToCloudinary, isConfigured } from "../utils/cloudinary";
 import { useToast } from "../context/ToastContext";
 import { useCategories } from "../hooks/useCategories";
 import { saveProduct } from "../hooks/useProducts";
-
-const shimmer = {
-  background: "linear-gradient(90deg,#6366F1,#8B5CF6,#EC4899,#6366F1)",
-  backgroundSize: "300% auto", WebkitBackgroundClip: "text", backgroundClip: "text",
-  color: "transparent", animation: "shimmer 4s linear infinite",
-};
+import AdminLayout from "../components/AdminLayout";
 
 const lbl = { display: "block", marginBottom: 6, fontWeight: 700, fontSize: 14, color: "#334155" };
 
@@ -201,10 +196,8 @@ export default function AddProduct() {
   const mainImage = images.filter(img => img.url)[mainIdx]?.url || images.find(img => img.url)?.url || "";
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'Tajawal',sans-serif", direction: "rtl" }}>
+    <AdminLayout title="إضافة منتج جديد" subtitle="عبّي تفاصيل المنتج وارفع صوره">
       <style>{`
-        @keyframes shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
         @media(max-width:700px){
           .ap-grid    { grid-template-columns: 1fr !important; }
           .ap-2col    { grid-template-columns: 1fr !important; }
@@ -212,16 +205,7 @@ export default function AddProduct() {
         }
       `}</style>
 
-      {/* ناف */}
-      <nav style={{ background: "#0F172A", borderBottom: "1px solid rgba(255,255,255,.08)", padding: "0 24px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 400 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <Link to="/admin-dashboard" style={{ background: "rgba(255,255,255,.08)", color: "rgba(255,255,255,.8)", border: "1.5px solid rgba(255,255,255,.12)", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13 }}>← رجوع</Link>
-          <span style={{ fontSize: 18, fontWeight: 900 }}><span style={{ color: "#fff" }}>➕ </span><span style={shimmer}>إضافة منتج جديد</span></span>
-        </div>
-        <Link to="/home" style={{ background: "rgba(255,255,255,.08)", color: "rgba(255,255,255,.7)", border: "1.5px solid rgba(255,255,255,.12)", borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13 }}>المتجر ←</Link>
-      </nav>
-
-      <main style={{ maxWidth: 960, margin: "28px auto", padding: "0 20px", animation: "fadeUp .45s ease both" }}>
+      <div style={{ maxWidth: 1200 }}>
         <form onSubmit={handleSubmit}>
           <div className="ap-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 22, alignItems: "start" }}>
 
@@ -584,7 +568,7 @@ export default function AddProduct() {
             </div>
           </div>
         </form>
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 }

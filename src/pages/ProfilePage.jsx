@@ -5,7 +5,7 @@ import MiniNav from "../components/MiniNav";
 import { useToast } from "../context/ToastContext";
 import { useLang } from "../context/LanguageContext";
 import { T } from "../i18n";
-import { apiFetch } from "../api";
+import { apiFetch, clearAuth } from "../api";
 
 const EMIRATES_AR = ["دبي", "أبو ظبي", "الشارقة", "عجمان", "رأس الخيمة", "الفجيرة", "أم القيوين"];
 const EMIRATES_EN = ["Dubai", "Abu Dhabi", "Sharjah", "Ajman", "Ras Al Khaimah", "Fujairah", "Umm Al Quwain"];
@@ -53,7 +53,9 @@ export default function ProfilePage() {
   };
 
   const changePw = async () => {
-    if (form.newPw.length < 4) return toast("كلمة المرور الجديدة قصيرة (4 خانات على الأقل)", "error");
+    // Backend requires 8 chars on change-password, 6 chars on register.
+    // Match backend exactly to avoid "passes client validation, server rejects" UX gap.
+    if (form.newPw.length < 8) return toast("كلمة المرور الجديدة قصيرة (8 خانات على الأقل)", "error");
     if (form.newPw !== form.confirmPw) return toast("كلمات المرور غير متطابقة", "error");
     try {
       await apiFetch("/api/auth/change-password", {
@@ -68,8 +70,7 @@ export default function ProfilePage() {
   };
 
   const logout = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("isAdmin");
+    clearAuth();
     navigate("/user-login", { replace: true });
   };
 

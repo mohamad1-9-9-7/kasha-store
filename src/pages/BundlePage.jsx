@@ -46,7 +46,7 @@ export default function BundlePage() {
   const isAr = lang === "ar";
 
   /* ── بيانات المنتجات والأقسام ── */
-  const { products } = useProducts();
+  const { products, refresh: refreshProducts } = useProducts();
   const { categories: allCats } = useCategories();
   const categories = useMemo(() => allCats.filter(c => products.some(p => p.category === c.name || p.category === c.id)), [allCats, products]);
   const { settings: storeSettings } = useSettings();
@@ -164,7 +164,13 @@ export default function BundlePage() {
       toast(`✅ ${isAr ? `تم طلب الباندل! ربحت ${earnedPoints} نقطة` : `Bundle ordered! You earned ${earnedPoints} points`}`, "success");
       setBundle([]);
       setInvoiceOrder(createdOrder || null);
-    } catch (e) { console.error(e); toast(isAr ? "خطأ في الإرسال" : "Error submitting order", "error"); }
+      // Refresh stock counts post-order so the next visit doesn't show stale numbers.
+      refreshProducts?.().catch(() => {});
+    } catch (e) {
+      console.error(e);
+      const fallback = isAr ? "خطأ في الإرسال" : "Error submitting order";
+      toast(e?.message || fallback, "error");
+    }
     finally { setLoading(false); }
   };
 

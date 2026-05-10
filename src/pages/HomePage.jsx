@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { safeParse, slugify, fmt, fmtPrice, catName, prodName } from "../Theme";
+import { safeParse, slugify, fmtPrice, catName, prodName } from "../Theme";
+import { clearAuth } from "../api";
 import { useLang } from "../context/LanguageContext";
 import { T } from "../i18n";
 import { useCategories } from "../hooks/useCategories";
@@ -125,8 +126,7 @@ export default function HomePage() {
   }, []);
 
   const logout = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("isAdmin");
+    clearAuth();
     navigate("/user-login", { replace: true });
   };
 

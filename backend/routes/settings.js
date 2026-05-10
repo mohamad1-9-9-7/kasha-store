@@ -86,17 +86,26 @@ function coerce(val, type) {
   return String(val ?? "");
 }
 
-// GET settings — public, but admin-only fields are stripped for non-admins
+// GET settings — public, but admin-only fields are stripped for non-admins.
+// adminPasswordHash is always stripped (even from admin) — it has no UI use
+// and shouldn't travel over the wire after every page load.
 router.get("/", async (req, res) => {
   try {
     const { rows } = await pool.query("SELECT data FROM settings WHERE id = 'main'");
     const merged = rows.length ? { ...DEFAULTS, ...rows[0].data } : DEFAULTS;
-    res.json(isAdminRequest(req) ? merged : stripAdminOnly(merged));
+    const { adminPasswordHash, ...publicMerged } = merged;
+    res.json(isAdminRequest(req) ? publicMerged : stripAdminOnly(publicMerged));
   } catch (e) {
     console.error("GET /settings:", e);
     res.status(500).json({ error: "خطأ في الخادم" });
   }
 });
+
+// Internal fields stored alongside settings but NOT user-editable through this
+// endpoint. We must preserve them across writes — otherwise an innocent
+// "save settings" click wipes the admin's password hash and silently reverts
+// to the bootstrap hash from .env (locking the admin out).
+const PRESERVED_INTERNAL_FIELDS = ["adminPasswordHash"];
 
 // PUT update settings (admin) — whitelist keys with typed coercion
 router.put("/", requireAdmin, async (req, res) => {
@@ -105,12 +114,23 @@ router.put("/", requireAdmin, async (req, res) => {
     for (const [k, type] of Object.entries(FIELD_TYPES)) {
       if (k in (req.body || {})) sanitized[k] = coerce(req.body[k], type);
     }
-    const data = { ...DEFAULTS, ...sanitized };
+    // Load current row so we can preserve fields that aren't in the FIELD_TYPES
+    // whitelist (e.g. adminPasswordHash, set by /api/auth/change-password).
+    const { rows: existing } = await pool.query("SELECT data FROM settings WHERE id = 'main'");
+    const preserved = {};
+    if (existing.length) {
+      for (const k of PRESERVED_INTERNAL_FIELDS) {
+        if (existing[0].data?.[k] !== undefined) preserved[k] = existing[0].data[k];
+      }
+    }
+    const data = { ...DEFAULTS, ...sanitized, ...preserved };
     await pool.query(
       "INSERT INTO settings (id, data) VALUES ('main', $1) ON CONFLICT (id) DO UPDATE SET data = $1",
       [data]
     );
-    res.json(data);
+    // Don't echo internal fields back
+    const { adminPasswordHash, ...publicData } = data;
+    res.json(publicData);
   } catch (e) {
     console.error("PUT /settings:", e);
     res.status(500).json({ error: "خطأ في الخادم" });

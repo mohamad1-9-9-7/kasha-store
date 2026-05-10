@@ -34,24 +34,49 @@ function readCache() {
   catch { return null; }
 }
 
+// Custom event dispatched after a settings save so already-mounted
+// useSettings consumers in the same tab pick up the new values without
+// a full page reload.
+const SETTINGS_UPDATED_EVENT = "kashkha-settings-updated";
+
 export function useSettings() {
   const [settings, setSettings] = useState(() => ({ ...DEFAULTS, ...(readCache() || {}) }));
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiFetch("/api/settings")
-      .then((data) => {
-        const merged = { ...DEFAULTS, ...data };
-        setSettings(merged);
-        try { localStorage.setItem(CACHE_KEY, JSON.stringify(merged)); } catch {}
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    const load = () => {
+      apiFetch("/api/settings")
+        .then((data) => {
+          if (cancelled) return;
+          const merged = { ...DEFAULTS, ...data };
+          setSettings(merged);
+          try { localStorage.setItem(CACHE_KEY, JSON.stringify(merged)); } catch {}
+        })
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setLoading(false); });
+    };
+    load();
+    const onUpdated = () => load();
+    window.addEventListener(SETTINGS_UPDATED_EVENT, onUpdated);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(SETTINGS_UPDATED_EVENT, onUpdated);
+    };
   }, []);
 
   return { settings, loading };
 }
 
 export async function saveSettings(data) {
-  return apiFetch("/api/settings", { method: "PUT", body: data });
+  const out = await apiFetch("/api/settings", { method: "PUT", body: data });
+  // Refresh the synchronous cache so Theme.js helpers (fmt, priceVat) see
+  // the new VAT/shipping config immediately, and notify other useSettings
+  // consumers in the same tab to re-fetch.
+  try {
+    const merged = { ...DEFAULTS, ...data, ...out };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(merged));
+    window.dispatchEvent(new Event(SETTINGS_UPDATED_EVENT));
+  } catch {}
+  return out;
 }

@@ -47,11 +47,22 @@ export default function MiniNav({ title, backTo, showCart = true, extra }) {
           {t("back")}
         </button>
 
-        {/* وسط: الشعار */}
-        <Link to="/home" style={{ fontSize: 20, fontWeight: 900, lineHeight: 1, textDecoration: "none" }}>
-          <span style={shimmerStyle}>{t("store_name")}</span>
-          <span style={{ color: "#fff" }}> ✨</span>
-        </Link>
+        {/* Center: page title (preferred) or store logo as fallback. Storefront
+            pages pass `title` and used to get nothing rendered — the prop was
+            destructured but never displayed. */}
+        {title ? (
+          <span style={{
+            fontSize: 17, fontWeight: 800, color: "#fff",
+            lineHeight: 1.2, textAlign: "center",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            flex: 1, minWidth: 0,
+          }}>{title}</span>
+        ) : (
+          <Link to="/home" style={{ fontSize: 20, fontWeight: 900, lineHeight: 1, textDecoration: "none" }}>
+            <span style={shimmerStyle}>{t("store_name")}</span>
+            <span style={{ color: "#fff" }}> ✨</span>
+          </Link>
+        )}
 
         {/* يمين: سلة + تبديل لغة */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
